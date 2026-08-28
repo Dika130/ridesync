@@ -1,5 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function decodePolyline6(str: string): [number, number][] {
+  let index = 0, lat = 0, lng = 0;
+  const coordinates: [number, number][] = [];
+  const factor = 1e6;
+
+  while (index < str.length) {
+    let b, shift = 0, result = 0;
+    do {
+      b = str.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = str.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    coordinates.push([lat / factor, lng / factor]);
+  }
+  return coordinates;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const fromLat = searchParams.get('fromLat');
@@ -32,13 +62,76 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // =========================================================================
+    // 🏍️ MODE MOTOR: Utamakan Jalan Raya Utama (Non-Tol, Hindari Gang Sempit / Jalan Tikus)
+    // =========================================================================
+    if (vehicleMode === 'motor') {
+      try {
+        const valhallaPayload = {
+          locations: [{ lat: fLat, lon: fLng }, { lat: tLat, lon: tLng }],
+          costing: 'motorcycle',
+          costing_options: {
+            motorcycle: {
+              use_highways: 0.0,      // ❌ Hindari jalan tol 100%
+              use_trails: 0.0,        // ❌ Hindari jalan setapak / gang tikus
+              service_penalty: 1.0,   // ❌ Hindari gang sempit pemukiman
+              top_speed: 80           // ✅ Kecepatan cruising jalan raya
+            }
+          }
+        };
+
+        const vUrl = `https://valhalla1.openstreetmap.de/route?json=${encodeURIComponent(JSON.stringify(valhallaPayload))}`;
+        const vRes = await fetch(vUrl, {
+          headers: { 'User-Agent': 'RideSync-App/2.0' },
+          next: { revalidate: 30 }
+        });
+
+        if (vRes.ok) {
+          const vData = await vRes.json();
+          if (vData.trip && vData.trip.legs && vData.trip.legs.length > 0) {
+            const leg = vData.trip.legs[0];
+            const coordinates = decodePolyline6(leg.shape);
+            const distanceKm = leg.summary.length;
+            const distanceMeters = distanceKm * 1000;
+
+            // Perhitungan waktu motor rata-rata 42 km/jam di jalan arteri
+            const durationSeconds = (distanceKm / 42) * 3600;
+            const totalMinutes = Math.max(1, Math.round(durationSeconds / 60));
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+
+            let durationFormatted = '';
+            if (hours > 0) {
+              durationFormatted = `${hours} Jam ${minutes} Menit`;
+            } else {
+              durationFormatted = `${minutes} Menit`;
+            }
+
+            return NextResponse.json({
+              success: true,
+              vehicleMode: 'motor',
+              routeDescription: 'Jalan Raya Utama (Bebas Tol & Tanpa Gang Sempit)',
+              distanceKm: parseFloat(distanceKm.toFixed(2)),
+              distanceFormatted: distanceKm < 1 ? `${Math.round(distanceMeters)} m` : `${distanceKm.toFixed(1)} km`,
+              durationMinutes: totalMinutes,
+              durationFormatted,
+              coordinates
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Valhalla motorcycle routing fallback to OSRM:', err);
+      }
+    }
+
+    // =========================================================================
+    // 🚗 MODE MOBIL ATAU FALLBACK: OSRM Car Expressways / Tol Tercepat
+    // =========================================================================
     let routeUrl = '';
     if (vehicleMode === 'mobil') {
-      // 🚗 MODE MOBIL: Logika Google Maps -> Prioritaskan Jalan Tol / Highway / Bebas Hambatan
       routeUrl = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${fLng},${fLat};${tLng},${tLat}?overview=full&geometries=geojson&steps=true`;
     } else {
-      // 🏍️ MODE MOTOR: Logika Google Maps -> Tanpa Tol (Bebas Hambatan Non-Tol / Jalan Arteri & Nasional)
-      routeUrl = `https://routing.openstreetmap.de/routed-bike/route/v1/driving/${fLng},${fLat};${tLng},${tLat}?overview=full&geometries=geojson&steps=true`;
+      routeUrl = `https://router.project-osrm.org/route/v1/driving/${fLng},${fLat};${tLng},${tLat}?overview=full&geometries=geojson&steps=true`;
     }
 
     let res = await fetch(routeUrl, {
@@ -46,7 +139,6 @@ export async function GET(req: NextRequest) {
       next: { revalidate: 30 }
     });
 
-    // Fallback mirror jika server routed-car/bike sedang sibuk
     if (!res.ok) {
       const fallbackUrl = `https://router.project-osrm.org/route/v1/driving/${fLng},${fLat};${tLng},${tLat}?overview=full&geometries=geojson&steps=true`;
       res = await fetch(fallbackUrl, {
@@ -71,10 +163,8 @@ export async function GET(req: NextRequest) {
 
     let adjustedDurationSeconds = durationSeconds;
     if (vehicleMode === 'motor') {
-      // Motor di jalur non-tol Indonesia rata-rata 42 km/h
       adjustedDurationSeconds = (distanceKm / 42) * 3600;
     } else {
-      // Mobil via Tol + Jalan Utama rata-rata 65-75 km/h
       adjustedDurationSeconds = Math.max(durationSeconds, (distanceKm / 70) * 3600);
     }
 
@@ -92,7 +182,7 @@ export async function GET(req: NextRequest) {
     const routeDescription =
       vehicleMode === 'mobil'
         ? 'Jalur Cepat (Utamakan Jalan Tol)'
-        : 'Jalur Bebas Tol (Khusus Sepeda Motor)';
+        : 'Jalan Raya Arteri (Khusus Sepeda Motor)';
 
     return NextResponse.json({
       success: true,
@@ -105,7 +195,7 @@ export async function GET(req: NextRequest) {
       coordinates: latLngCoordinates
     });
   } catch (error: any) {
-    // Fallback garis langsung jika OSRM offline
+    // Fallback garis langsung jika server navigasi sibuk
     const p1: [number, number] = [fLat, fLng];
     const p2: [number, number] = [tLat, tLng];
 
@@ -128,7 +218,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       vehicleMode,
-      routeDescription: vehicleMode === 'mobil' ? 'Jalur Cepat Mobil' : 'Jalur Motor Non-Tol',
+      routeDescription: vehicleMode === 'mobil' ? 'Jalur Cepat Mobil' : 'Jalan Raya Motor',
       distanceKm: parseFloat(dist.toFixed(1)),
       distanceFormatted: `${dist.toFixed(1)} km`,
       durationMinutes: dur,
