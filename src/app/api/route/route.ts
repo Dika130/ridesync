@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
 
   try {
     // =========================================================================
-    // 🏍️ MODE MOTOR: Utamakan Jalan Raya Utama (Non-Tol, Hindari Gang Sempit / Jalan Tikus)
+    // 🏍️ MODE MOTOR: Utamakan Jalan Raya Utama Favorit Bikers / Arteri / Nasional
+    // (Bebas Tol, Hindari Gang Sempit, Maksimalkan Jalan Protokol / Trunk / Primary)
     // =========================================================================
     if (vehicleMode === 'motor') {
       try {
@@ -72,10 +73,13 @@ export async function GET(req: NextRequest) {
           costing: 'motorcycle',
           costing_options: {
             motorcycle: {
-              use_highways: 0.0,      // ❌ Hindari jalan tol 100%
-              use_trails: 0.0,        // ❌ Hindari jalan setapak / gang tikus
-              service_penalty: 1.0,   // ❌ Hindari gang sempit pemukiman
-              top_speed: 80           // ✅ Kecepatan cruising jalan raya
+              use_highways: 0.0,        // ❌ Blokir jalan tol 100%
+              use_trails: 0.0,          // ❌ Blokir jalan setapak / jalan setapak warga
+              use_living_streets: 0.0,  // ❌ Blokir gang sempit perumahan
+              service_penalty: 1.0,     // ❌ Hindari jalan lorong / gang kecil
+              use_roads: 1.0,           // ⭐ PRIORITASKAN JALAN RAYA UTAMA & ARTERI (Jalur Favorit Motor)
+              shortest: false,          // ⭐ Utamakan jalan besar yang lancar, bukan jalan tikus sempit berbelit
+              top_speed: 80             // ⭐ Kecepatan jelajah motor touring
             }
           }
         };
@@ -110,7 +114,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
               success: true,
               vehicleMode: 'motor',
-              routeDescription: 'Jalan Raya Utama (Bebas Tol & Tanpa Gang Sempit)',
+              routeDescription: 'Jalan Raya Utama Favorit Bikers (Bebas Tol & Tanpa Gang)',
               distanceKm: parseFloat(distanceKm.toFixed(2)),
               distanceFormatted: distanceKm < 1 ? `${Math.round(distanceMeters)} m` : `${distanceKm.toFixed(1)} km`,
               durationMinutes: totalMinutes,
