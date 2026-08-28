@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bike,
+  Car,
   Users,
   Compass,
   Zap,
@@ -27,7 +28,8 @@ export default function HomePage() {
   // Form Create Group
   const [groupName, setGroupName] = useState('');
   const [creatorName, setCreatorName] = useState('');
-  const [motorcycleModel, setMotorcycleModel] = useState('');
+  const [vehicleType, setVehicleType] = useState<'Motor' | 'Mobil'>('Motor');
+  const [vehicleDetail, setVehicleDetail] = useState('');
   const [checkpointName, setCheckpointName] = useState('Puncak Pass Rest Area');
   const [checkpointLat, setCheckpointLat] = useState('-6.7025');
   const [checkpointLng, setCheckpointLng] = useState('106.9942');
@@ -43,13 +45,17 @@ export default function HomePage() {
 
     setCreateLoading(true);
     try {
+      const fullVehicleName = vehicleDetail.trim()
+        ? `${vehicleType} (${vehicleDetail.trim()})`
+        : vehicleType;
+
       const res = await fetch('/api/groups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: groupName,
           creatorName,
-          motorcycleModel: motorcycleModel || 'Motor Standar',
+          motorcycleModel: fullVehicleName,
           role: 'Road Captain',
           checkpoint: {
             name: checkpointName || 'Titik Kumpul Konvoi',
@@ -95,8 +101,8 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#064e3b10_1px,transparent_1px),linear-gradient(to_bottom,#064e3b10_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
       </div>
 
-      {/* Fully Sticky Topbar */}
-      <header className="sticky top-0 z-50 w-full border-b border-emerald-950/80 bg-[#040806]/95 backdrop-blur-2xl shadow-xl">
+      {/* Fully Sticky Topbar with z-[1000] */}
+      <header className="sticky top-0 z-[1000] w-full border-b border-emerald-950/80 bg-[#040806]/95 backdrop-blur-2xl shadow-xl">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-400 p-[1.5px] shadow-[0_0_20px_rgba(16,185,129,0.3)]">
@@ -132,7 +138,7 @@ export default function HomePage() {
         <div className="text-center space-y-4 max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-xs font-semibold backdrop-blur shadow-[0_0_15px_rgba(16,185,129,0.15)]">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            <span>Smart Real-Time Convoy GPS & Non-Toll Navigation</span>
+            <span>Smart Real-Time Convoy GPS & Road Telemetry</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-tight">
@@ -208,20 +214,47 @@ export default function HomePage() {
                 />
               </div>
 
+              {/* Pilihan Jenis Kendaraan: Motor vs Mobil */}
               <div>
-                <label className="block text-emerald-200 font-semibold mb-1.5">Kendaraan Anda</label>
+                <label className="block text-emerald-200 font-semibold mb-1.5 font-mono">Jenis Kendaraan Anda</label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setVehicleType('Motor')}
+                    className={`py-2.5 px-3 rounded-2xl border flex items-center justify-center gap-2 font-bold transition cursor-pointer ${
+                      vehicleType === 'Motor'
+                        ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                        : 'bg-[#020704] border-emerald-900 text-emerald-400/60'
+                    }`}
+                  >
+                    <Bike className="w-4 h-4" />
+                    <span>🏍️ Motor</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVehicleType('Mobil')}
+                    className={`py-2.5 px-3 rounded-2xl border flex items-center justify-center gap-2 font-bold transition cursor-pointer ${
+                      vehicleType === 'Mobil'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                        : 'bg-[#020704] border-emerald-900 text-emerald-400/60'
+                    }`}
+                  >
+                    <Car className="w-4 h-4" />
+                    <span>🚗 Mobil</span>
+                  </button>
+                </div>
                 <input
                   type="text"
-                  placeholder="Contoh: Yamaha R25 / Honda CB150X / Mobilio"
-                  value={motorcycleModel}
-                  onChange={(e) => setMotorcycleModel(e.target.value)}
-                  className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition font-sans"
+                  placeholder="Detail tipe (opsional, misal: NMAX / ZX25R / Avanza)"
+                  value={vehicleDetail}
+                  onChange={(e) => setVehicleDetail(e.target.value)}
+                  className="w-full bg-[#020704] border border-emerald-900/80 focus:border-emerald-400 rounded-2xl py-2 px-3 text-xs text-white placeholder:text-emerald-900 focus:outline-none transition font-sans"
                 />
               </div>
 
               {/* Titik Checkpoint Awal */}
               <div className="pt-2 border-t border-emerald-950 space-y-3">
-                <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px] uppercase tracking-wider">
+                <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px] uppercase tracking-wider font-mono">
                   <MapPin className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Titik Tujuan / Kumpul Konvoi</span>
                 </div>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { ConvoyGroup, GroupMember, Checkpoint } from '@/lib/types';
+import { ConvoyGroup, GroupMember, Checkpoint, ConvoyMessage } from '@/lib/types';
 import CheckpointModal from '@/components/CheckpointModal';
 import {
   Bike,
@@ -38,7 +38,11 @@ import {
   Eye,
   Edit3,
   Crown,
-  Sparkle
+  Sparkle,
+  Send,
+  X,
+  Flame,
+  AlertCircle
 } from 'lucide-react';
 
 const MultiplayerConvoyMap = dynamic(() => import('@/components/MultiplayerConvoyMap'), {
@@ -82,9 +86,10 @@ export default function ConvoyRoomPage() {
   const [myMemberId, setMyMemberId] = useState<string | null>(null);
   const [focusedMemberId, setFocusedMemberId] = useState<string | undefined>(undefined);
 
-  // Join form state (No more confusing role selection)
+  // Join form state (Motor vs Mobil)
   const [joinName, setJoinName] = useState('');
-  const [joinMotor, setJoinMotor] = useState('');
+  const [joinVehicleType, setJoinVehicleType] = useState<'Motor' | 'Mobil'>('Motor');
+  const [joinVehicleDetail, setJoinVehicleDetail] = useState('');
   const [joinLoading, setJoinLoading] = useState(false);
 
   // Checkpoint Modal
@@ -92,7 +97,8 @@ export default function ConvoyRoomPage() {
 
   // Edit Vehicle Modal
   const [isEditVehicleOpen, setIsEditVehicleOpen] = useState(false);
-  const [editVehicleName, setEditVehicleName] = useState('');
+  const [editVehicleType, setEditVehicleType] = useState<'Motor' | 'Mobil'>('Motor');
+  const [editVehicleDetail, setEditVehicleDetail] = useState('');
   const [editVehicleLoading, setEditVehicleLoading] = useState(false);
 
   // Transfer Captain Modal
@@ -107,6 +113,15 @@ export default function ConvoyRoomPage() {
   // Kick Member Modal
   const [memberToKick, setMemberToKick] = useState<GroupMember | null>(null);
   const [kickLoading, setKickLoading] = useState(false);
+
+  // Live Convoy Group Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [messages, setMessages] = useState<ConvoyMessage[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [sendLoading, setSendLoading] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const lastSeenMsgCountRef = useRef(0);
+  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
 
   // Share link state
   const [copied, setCopied] = useState(false);
@@ -189,6 +204,45 @@ export default function ConvoyRoomPage() {
     return () => clearInterval(interval);
   }, [groupCode, myMemberId, router]);
 
+  // Fetch Live Chat Messages continuously
+  useEffect(() => {
+    if (!groupCode) return;
+
+    async function fetchMessages() {
+      try {
+        const res = await fetch(`/api/groups/${groupCode}/messages`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          const msgs: ConvoyMessage[] = data.messages || [];
+          setMessages(msgs);
+
+          if (!isChatOpen) {
+            const diff = msgs.length - lastSeenMsgCountRef.current;
+            if (diff > 0) setUnreadChatCount(diff);
+          } else {
+            lastSeenMsgCountRef.current = msgs.length;
+            setUnreadChatCount(0);
+          }
+        }
+      } catch (e) {}
+    }
+
+    fetchMessages();
+    const chatInterval = setInterval(fetchMessages, 2000);
+    return () => clearInterval(chatInterval);
+  }, [groupCode, isChatOpen]);
+
+  // Auto scroll chat to bottom when open
+  useEffect(() => {
+    if (isChatOpen) {
+      lastSeenMsgCountRef.current = messages.length;
+      setUnreadChatCount(0);
+      setTimeout(() => {
+        chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [isChatOpen, messages.length]);
+
   // Broadcast My GPS Location continuously
   useEffect(() => {
     if (!myMemberId || !groupCode || typeof navigator === 'undefined' || !navigator.geolocation) return;
@@ -261,6 +315,10 @@ export default function ConvoyRoomPage() {
 
     setJoinLoading(true);
 
+    const fullVehicle = joinVehicleDetail.trim()
+      ? `${joinVehicleType} (${joinVehicleDetail.trim()})`
+      : joinVehicleType;
+
     const doJoin = async (lat?: number, lng?: number) => {
       try {
         const res = await fetch(`/api/groups/${groupCode}/join`, {
@@ -268,7 +326,7 @@ export default function ConvoyRoomPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: joinName,
-            motorcycleModel: joinMotor || 'Motor Standar',
+            motorcycleModel: fullVehicle,
             role: 'Rider',
             latitude: lat,
             longitude: lng
@@ -351,7 +409,11 @@ export default function ConvoyRoomPage() {
   // Handle Update My Vehicle
   const handleSaveVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!myMemberId || !editVehicleName.trim()) return;
+    if (!myMemberId) return;
+
+    const fullVehicle = editVehicleDetail.trim()
+      ? `${editVehicleType} (${editVehicleDetail.trim()})`
+      : editVehicleType;
 
     setEditVehicleLoading(true);
     try {
@@ -360,7 +422,7 @@ export default function ConvoyRoomPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           memberId: myMemberId,
-          vehicleModel: editVehicleName.trim()
+          vehicleModel: fullVehicle
         })
       });
 
@@ -444,6 +506,40 @@ export default function ConvoyRoomPage() {
     } finally {
       setKickLoading(false);
       setMemberToKick(null);
+    }
+  };
+
+  // Handle Send Chat Message
+  const handleSendMessage = async (customText?: string, isUrgentFlag?: boolean) => {
+    const textToSend = customText || inputMessage;
+    if (!myMember || !textToSend.trim()) return;
+
+    setSendLoading(true);
+    try {
+      const vehicleName = myMember.motorcycle_model?.startsWith('Mobil') ? 'Mobil' : 'Motor';
+      const res = await fetch(`/api/groups/${groupCode}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderId: myMember.id,
+          senderName: myMember.name,
+          vehicleType: vehicleName,
+          message: textToSend.trim(),
+          isUrgent: !!isUrgentFlag
+        })
+      });
+
+      if (res.ok) {
+        if (!customText) setInputMessage('');
+        const data = await res.json();
+        if (data.message) {
+          setMessages((prev) => [...prev, data.message]);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSendLoading(false);
     }
   };
 
@@ -546,7 +642,7 @@ export default function ConvoyRoomPage() {
               </div>
             </div>
             <span className="text-[10px] px-2.5 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-full font-bold uppercase tracking-wider font-mono">
-              Undangan Konvoi Motor
+              Undangan Konvoi Motor & Mobil
             </span>
             <h1 className="text-xl font-black text-white">{group.name}</h1>
             <p className="text-xs text-emerald-400/60 font-mono">
@@ -577,27 +673,51 @@ export default function ConvoyRoomPage() {
                 placeholder="Contoh: Dani / Budi"
                 value={joinName}
                 onChange={(e) => setJoinName(e.target.value)}
-                className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition"
+                className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition font-sans"
               />
             </div>
 
+            {/* Pilihan Jenis Kendaraan: Motor vs Mobil */}
             <div>
-              <label className="block text-emerald-200 font-semibold mb-1">
-                Kendaraan yang Dipakai <span className="text-emerald-400">*</span>
-              </label>
+              <label className="block text-emerald-200 font-semibold mb-1 font-mono">Jenis Kendaraan Anda</label>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setJoinVehicleType('Motor')}
+                  className={`py-2 px-3 rounded-xl border flex items-center justify-center gap-1.5 font-bold transition cursor-pointer ${
+                    joinVehicleType === 'Motor'
+                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                      : 'bg-[#020704] border-emerald-900 text-emerald-400/60'
+                  }`}
+                >
+                  <Bike className="w-4 h-4" />
+                  <span>🏍️ Motor</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJoinVehicleType('Mobil')}
+                  className={`py-2 px-3 rounded-xl border flex items-center justify-center gap-1.5 font-bold transition cursor-pointer ${
+                    joinVehicleType === 'Mobil'
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                      : 'bg-[#020704] border-emerald-900 text-emerald-400/60'
+                  }`}
+                >
+                  <Car className="w-4 h-4" />
+                  <span>🚗 Mobil</span>
+                </button>
+              </div>
               <input
                 type="text"
-                required
-                placeholder="Contoh: Kawasaki ZX25R / Yamaha NMAX / Honda Beat"
-                value={joinMotor}
-                onChange={(e) => setJoinMotor(e.target.value)}
-                className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition"
+                placeholder="Detail tipe (opsional, misal: ZX25R / NMAX / Avanza)"
+                value={joinVehicleDetail}
+                onChange={(e) => setJoinVehicleDetail(e.target.value)}
+                className="w-full bg-[#020704] border border-emerald-900/80 focus:border-emerald-400 rounded-2xl py-2 px-3 text-xs text-white placeholder:text-emerald-900 focus:outline-none transition font-sans"
               />
             </div>
 
             <button
               type="submit"
-              disabled={joinLoading || !joinName || !joinMotor}
+              disabled={joinLoading || !joinName}
               className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-black font-black rounded-2xl text-sm shadow-[0_0_25px_rgba(16,185,129,0.35)] transition flex items-center justify-center gap-2 transform active:scale-95 cursor-pointer disabled:opacity-50 mt-1"
             >
               {joinLoading ? (
@@ -620,65 +740,74 @@ export default function ConvoyRoomPage() {
   // ==============================================================================
   return (
     <div className="min-h-screen bg-[#030705] flex flex-col font-sans text-emerald-50 selection:bg-emerald-400 selection:text-black">
-      {/* Top Navbar Header - Fully Sticky */}
-      <header className="sticky top-0 z-50 w-full border-b border-emerald-950/80 bg-[#040806]/95 backdrop-blur-2xl shadow-2xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+      {/* Top Navbar Header - Fully Sticky with z-[1000] (Strictly Above Map) */}
+      <header className="sticky top-0 z-[1000] w-full border-b border-emerald-950/80 bg-[#040806]/98 backdrop-blur-2xl shadow-2xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setIsLeaveModalOpen(true)}
               title={isCaptain ? 'Bubarkan & Keluar Konvoi' : 'Keluar dari Konvoi'}
-              className="flex items-center gap-1.5 py-1.5 px-3 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-red-300 hover:text-white rounded-xl text-xs font-bold transition shadow font-mono cursor-pointer"
+              className="flex items-center gap-1.5 py-1.5 px-2.5 sm:px-3 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-red-300 hover:text-white rounded-xl text-xs font-bold transition shadow font-mono cursor-pointer shrink-0"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{isCaptain ? 'Bubarkan Grup' : 'Keluar Grup'}</span>
             </button>
 
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-black text-white tracking-tight">{group.name}</h1>
-                <span className="text-[10px] px-2 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-full font-mono font-bold">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="text-sm sm:text-base font-black text-white tracking-tight truncate">{group.name}</h1>
+                <span className="text-[9px] sm:text-[10px] px-2 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-full font-mono font-bold shrink-0">
                   {group.code}
                 </span>
               </div>
-              <p className="text-[11px] text-emerald-400/60 font-mono">
-                {group.members.length} Rider Terhubung • Anda: <b className="text-emerald-300">{myMember?.name}</b> {isCaptain && <span className="text-teal-300 font-bold">(Road Captain)</span>}
+              <p className="text-[10px] sm:text-[11px] text-emerald-400/60 font-mono truncate">
+                {group.members.length} Rider • Anda: <b className="text-emerald-300">{myMember?.name}</b> {isCaptain && <span className="text-teal-300 font-bold">(Captain)</span>}
               </p>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
-            {isCaptain ? (
+          {/* Action Buttons: Chat, Checkpoint, Share */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Tombol Live Convoy Chat di Topbar */}
+            <button
+              onClick={() => setIsChatOpen(true)}
+              title="Obrolan Rombongan Konvoi"
+              className="relative flex items-center gap-1.5 py-1.5 px-3 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold transition shadow-[0_0_15px_rgba(16,185,129,0.15)] cursor-pointer font-mono"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Obrolan</span>
+              {unreadChatCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-bounce shadow">
+                  {unreadChatCount}
+                </span>
+              )}
+            </button>
+
+            {isCaptain && (
               <button
                 onClick={() => setIsCheckpointModalOpen(true)}
                 title="Atur Titik Tujuan Konvoi (Hanya Road Captain)"
-                className="flex items-center gap-1.5 py-1.5 px-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold transition shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
+                className="flex items-center gap-1.5 py-1.5 px-2.5 sm:px-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold transition shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
               >
                 <Flag className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Set Tujuan (Captain)</span>
-                <span className="sm:hidden">Set Tujuan</span>
+                <span className="hidden sm:inline">Set Tujuan</span>
               </button>
-            ) : (
-              <div className="hidden sm:flex items-center gap-1.5 py-1.5 px-2.5 bg-emerald-950/40 border border-emerald-900/60 text-[11px] text-emerald-400/70 rounded-xl font-mono">
-                <Lock className="w-3 h-3 text-emerald-600" />
-                <span>Tujuan diatur Captain</span>
-              </div>
             )}
 
             <button
               onClick={handleCopyGroupLink}
-              className="flex items-center gap-1.5 py-1.5 px-3 bg-[#06100c] hover:bg-emerald-950 border border-emerald-900 text-emerald-200 rounded-xl text-xs font-bold transition shadow font-mono cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 py-1.5 px-3 bg-[#06100c] hover:bg-emerald-950 border border-emerald-900 text-emerald-200 rounded-xl text-xs font-bold transition shadow font-mono cursor-pointer"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{copied ? 'Tersalin!' : 'Salin Link'}</span>
+              <span>{copied ? 'Tersalin!' : 'Salin'}</span>
             </button>
 
             <button
               onClick={handleShareWhatsApp}
-              className="flex items-center gap-1.5 py-1.5 px-3.5 bg-emerald-600 hover:bg-emerald-500 text-black font-extrabold rounded-xl text-xs transition shadow-[0_0_20px_rgba(16,185,129,0.3)] cursor-pointer"
+              className="flex items-center gap-1.5 py-1.5 px-2.5 sm:px-3.5 bg-emerald-600 hover:bg-emerald-500 text-black font-extrabold rounded-xl text-xs transition shadow-[0_0_20px_rgba(16,185,129,0.3)] cursor-pointer"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Share WA</span>
+              <Share2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Share WA</span>
             </button>
           </div>
         </div>
@@ -726,6 +855,7 @@ export default function ConvoyRoomPage() {
                 const isMe = member.id === myMemberId;
                 const isFocused = member.id === focusedMemberId;
                 const memberIsCaptain = member.role === 'Road Captain' || group.created_by === member.name;
+                const isCar = (member.motorcycle_model || '').toLowerCase().includes('mobil');
                 const distanceToCp = group.checkpoint
                   ? calculateDistance(member.latitude, member.longitude, group.checkpoint.latitude, group.checkpoint.longitude)
                   : null;
@@ -746,6 +876,8 @@ export default function ConvoyRoomPage() {
                       <div className="w-11 h-11 rounded-2xl bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center font-bold text-white text-xs uppercase overflow-hidden shrink-0">
                         {member.avatar_url ? (
                           <img src={member.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : isCar ? (
+                          <Car className={`w-5 h-5 ${isFocused ? 'text-white' : 'text-cyan-400'}`} />
                         ) : (
                           <Bike className={`w-5 h-5 ${isFocused ? 'text-white' : isMe ? 'text-emerald-400' : 'text-teal-400'}`} />
                         )}
@@ -764,14 +896,15 @@ export default function ConvoyRoomPage() {
                           )}
                         </div>
 
-                        {/* Info Kendaraan & Action Edit */}
+                        {/* Info Kendaraan: Motor vs Mobil */}
                         <div className="flex items-center gap-2 text-[11px] text-emerald-300/80 truncate mt-0.5">
-                          <span className="font-semibold">{member.motorcycle_model || 'Motor Standar'}</span>
+                          <span className="font-semibold">{member.motorcycle_model || 'Motor'}</span>
                           {isMe && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setEditVehicleName(member.motorcycle_model || '');
+                                const isCarType = (member.motorcycle_model || '').startsWith('Mobil');
+                                setEditVehicleType(isCarType ? 'Mobil' : 'Motor');
                                 setIsEditVehicleOpen(true);
                               }}
                               title="Ubah info kendaraan Anda"
@@ -858,7 +991,135 @@ export default function ConvoyRoomPage() {
         />
       )}
 
-      {/* Modal Ubah Informasi Kendaraan */}
+      {/* Modal Live Convoy Group Chat (z-[9999]) */}
+      {isChatOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-in fade-in">
+          <div className="max-w-md w-full bg-[#050d09] border border-emerald-500/40 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.9)] flex flex-col h-[600px] max-h-[90vh] overflow-hidden">
+            {/* Chat Header */}
+            <div className="p-4 border-b border-emerald-950 bg-[#030906] flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">Obrolan Konvoi Live</h3>
+                  <p className="text-[10px] text-emerald-400/70 font-mono">
+                    {group.name} • {group.members.length} Rider
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsChatOpen(false)}
+                className="p-1.5 text-emerald-400/60 hover:text-white rounded-xl hover:bg-emerald-950 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Broadcast Preset Pills */}
+            <div className="p-2.5 bg-[#030805] border-b border-emerald-950/80 flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono no-scrollbar">
+              <button
+                onClick={() => handleSendMessage('🚨 Butuh Bantuan / Motor Bermasalah!', true)}
+                className="px-2.5 py-1 bg-red-950/80 hover:bg-red-900 border border-red-700/60 text-red-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
+              >
+                🚨 Butuh Bantuan
+              </button>
+              <button
+                onClick={() => handleSendMessage('⛽ Isi Bensin / SPBU Terdekat')}
+                className="px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-700/60 text-amber-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
+              >
+                ⛽ Isi Bensin
+              </button>
+              <button
+                onClick={() => handleSendMessage('☕ Istirahat / Rest Area Sebentar')}
+                className="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
+              >
+                ☕ Rest Area
+              </button>
+              <button
+                onClick={() => handleSendMessage('⚠️ Hati-hati Jalan Rusak / Licin!')}
+                className="px-2.5 py-1 bg-teal-950/80 hover:bg-teal-900 border border-teal-700/60 text-teal-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
+              >
+                ⚠️ Jalan Rusak
+              </button>
+              <button
+                onClick={() => handleSendMessage('👍 Siap Gas / Rombongan Lengkap')}
+                className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700/60 text-cyan-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
+              >
+                👍 Siap Gas
+              </button>
+            </div>
+
+            {/* Chat Messages Log */}
+            <div className="flex-1 p-4 overflow-y-auto space-y-3 font-sans text-xs">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center text-emerald-400/50 space-y-2 font-mono">
+                  <MessageSquare className="w-8 h-8 opacity-40" />
+                  <p>Belum ada obrolan konvoi.</p>
+                  <p className="text-[10px]">Gunakan tombol preset di atas atau ketik pesan untuk broadcast ke semua rider.</p>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMine = msg.sender_id === myMemberId;
+                  const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                    >
+                      <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-emerald-400/70 font-mono">
+                        <span>{msg.vehicle_type === 'Mobil' ? '🚗' : '🏍️'}</span>
+                        <span className="font-bold text-emerald-300">{isMine ? 'Anda' : msg.sender_name}</span>
+                        <span>•</span>
+                        <span>{time}</span>
+                      </div>
+                      <div
+                        className={`max-w-[82%] p-3 rounded-2xl ${
+                          msg.is_urgent
+                            ? 'bg-red-950/90 border border-red-500 text-red-100 font-bold shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse'
+                            : isMine
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-black font-semibold shadow-md rounded-tr-sm'
+                            : 'bg-[#020704] border border-emerald-900/80 text-emerald-100 rounded-tl-sm'
+                        }`}
+                      >
+                        {msg.message}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatMessagesEndRef} />
+            </div>
+
+            {/* Chat Input */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              className="p-3 border-t border-emerald-950 bg-[#030906] flex items-center gap-2"
+            >
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Ketik pesan ke seluruh rombongan..."
+                className="flex-1 bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2 px-3.5 text-xs text-white placeholder:text-emerald-900 focus:outline-none transition"
+              />
+              <button
+                type="submit"
+                disabled={sendLoading || !inputMessage.trim()}
+                className="p-2.5 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-black rounded-2xl transition disabled:opacity-40 cursor-pointer"
+              >
+                <Send className="w-4 h-4 fill-current" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ubah Informasi Kendaraan (Motor vs Mobil) */}
       {isEditVehicleOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-in fade-in">
           <div className="max-w-sm w-full bg-[#050d09] border border-emerald-900/80 rounded-3xl p-6 shadow-2xl space-y-4">
@@ -867,22 +1128,48 @@ export default function ConvoyRoomPage() {
             </div>
 
             <div className="text-center space-y-1">
-              <h3 className="text-base font-black text-white">Ubah Kendaraan Anda</h3>
+              <h3 className="text-base font-black text-white">Pilih Jenis Kendaraan</h3>
               <p className="text-xs text-emerald-300/60 leading-relaxed">
-                Rider lain akan melihat nama dan model kendaraan yang Anda kendarai.
+                Rider lain akan mengetahui jenis kendaraan yang Anda kendarai di konvoi.
               </p>
             </div>
 
             <form onSubmit={handleSaveVehicle} className="space-y-3 pt-2 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditVehicleType('Motor')}
+                  className={`py-2.5 px-3 rounded-2xl border flex items-center justify-center gap-1.5 font-bold transition cursor-pointer ${
+                    editVehicleType === 'Motor'
+                      ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                      : 'bg-[#020704] border-emerald-900 text-emerald-400/60'
+                  }`}
+                >
+                  <Bike className="w-4 h-4" />
+                  <span>🏍️ Motor</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditVehicleType('Mobil')}
+                  className={`py-2.5 px-3 rounded-2xl border flex items-center justify-center gap-1.5 font-bold transition cursor-pointer ${
+                    editVehicleType === 'Mobil'
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                      : 'bg-[#020704] border-emerald-900 text-emerald-400/60'
+                  }`}
+                >
+                  <Car className="w-4 h-4" />
+                  <span>🚗 Mobil</span>
+                </button>
+              </div>
+
               <div>
-                <label className="block text-emerald-200 font-semibold mb-1 font-mono">Model / Tipe Kendaraan</label>
+                <label className="block text-emerald-200 font-semibold mb-1 font-mono">Detail Tipe (Opsional)</label>
                 <input
                   type="text"
-                  required
-                  placeholder="Contoh: Kawasaki ZX25R / Yamaha NMAX / Mobil Avanza"
-                  value={editVehicleName}
-                  onChange={(e) => setEditVehicleName(e.target.value)}
-                  className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition"
+                  placeholder="Contoh: ZX25R / NMAX / Avanza"
+                  value={editVehicleDetail}
+                  onChange={(e) => setEditVehicleDetail(e.target.value)}
+                  className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2 px-3 text-xs text-white placeholder:text-emerald-900 focus:outline-none transition"
                 />
               </div>
 
@@ -897,7 +1184,7 @@ export default function ConvoyRoomPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={editVehicleLoading || !editVehicleName.trim()}
+                  disabled={editVehicleLoading}
                   className="flex-1 py-2.5 px-4 bg-gradient-to-r from-emerald-400 to-teal-500 text-black font-extrabold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg cursor-pointer"
                 >
                   {editVehicleLoading ? (

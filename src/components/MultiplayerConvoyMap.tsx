@@ -19,7 +19,10 @@ import {
   Leaf,
   Eye,
   Users,
-  ChevronDown
+  ChevronDown,
+  Lock,
+  Unlock,
+  Move
 } from 'lucide-react';
 
 interface MultiplayerConvoyMapProps {
@@ -48,6 +51,9 @@ export default function MultiplayerConvoyMap({
   const memberMarkersRef = useRef<Map<string, any>>(new Map());
   const checkpointMarkerRef = useRef<any>(null);
   const routePolylineRef = useRef<any>(null);
+
+  // Mobile gesture interaction state
+  const [isMapInteractable, setIsMapInteractable] = useState(true);
 
   // Dropdown Rider Selector State
   const [isRiderDropdownOpen, setIsRiderDropdownOpen] = useState(false);
@@ -106,6 +112,21 @@ export default function MultiplayerConvoyMap({
 
     fetchRoute();
   }, [activeFocusMember?.id, activeFocusMember?.latitude, activeFocusMember?.longitude, checkpoint?.latitude, checkpoint?.longitude, vehicleMode]);
+
+  // Toggle map gestures for smooth page scrolling on mobile
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    if (isMapInteractable) {
+      map.dragging.enable();
+      map.touchZoom.enable();
+      map.scrollWheelZoom.enable();
+    } else {
+      map.dragging.disable();
+      map.touchZoom.disable();
+      map.scrollWheelZoom.disable();
+    }
+  }, [isMapInteractable]);
 
   // Leaflet Map Render
   useEffect(() => {
@@ -189,6 +210,7 @@ export default function MultiplayerConvoyMap({
     members.forEach((member) => {
       const isMe = member.id === currentMemberId;
       const isFocused = member.id === activeFocusMemberId;
+      const isCar = (member.motorcycle_model || '').toLowerCase().includes('mobil');
       const latLng: [number, number] = [member.latitude, member.longitude];
 
       const riderIcon = L.divIcon({
@@ -208,6 +230,8 @@ export default function MultiplayerConvoyMap({
                   ? `<img src="${member.avatar_url}" class="w-full h-full object-cover" />`
                   : isMe
                   ? `<span>Anda</span>`
+                  : isCar
+                  ? `<span>🚗</span>`
                   : `<span class="uppercase">${member.name.substring(0, 2)}</span>`
               }
             </div>
@@ -316,8 +340,8 @@ export default function MultiplayerConvoyMap({
     <div className="relative w-full h-full min-h-[500px] lg:min-h-[660px] bg-[#020604] rounded-3xl overflow-hidden border border-emerald-900/60 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
       <div ref={mapContainerRef} className="w-full h-full" />
 
-      {/* Floating Toolbar Navigasi di Kanan Atas */}
-      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[400] flex flex-col gap-2 items-end">
+      {/* Floating Toolbar Navigasi di Kanan Atas - z-20 agar di bawah header sticky */}
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex flex-col gap-2 items-end">
         {/* Toggle Mode Jalur Motor vs Mobil */}
         <div className="flex bg-[#040c08]/95 backdrop-blur-xl border border-emerald-900/80 p-1 rounded-2xl shadow-xl">
           <button
@@ -357,7 +381,7 @@ export default function MultiplayerConvoyMap({
             </button>
 
             {isRiderDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-[#040d09] border border-emerald-500/40 rounded-2xl shadow-2xl p-2 z-[500] space-y-1 backdrop-blur-2xl">
+              <div className="absolute right-0 mt-2 w-56 bg-[#040d09] border border-emerald-500/40 rounded-2xl shadow-2xl p-2 z-30 space-y-1 backdrop-blur-2xl">
                 <div className="text-[10px] text-emerald-400/70 font-mono px-2 py-1 uppercase font-bold border-b border-emerald-950">
                   Pilih Rider untuk Dilihat:
                 </div>
@@ -415,8 +439,8 @@ export default function MultiplayerConvoyMap({
         </button>
       </div>
 
-      {/* Info Route & ETA Banner di Kiri Atas */}
-      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-[400] flex flex-col gap-2 max-w-[250px] sm:max-w-[310px]">
+      {/* Info Route & ETA Banner di Kiri Atas - z-20 agar di bawah header sticky */}
+      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20 flex flex-col gap-2 max-w-[250px] sm:max-w-[310px]">
         {routeInfo && routeInfo.distanceFormatted ? (
           <div className="bg-[#030906]/95 backdrop-blur-2xl border border-emerald-500/40 p-3 sm:p-3.5 rounded-2xl shadow-[0_4px_25px_rgba(0,0,0,0.8)] space-y-2 animate-in fade-in">
             {/* Header Title */}
@@ -478,20 +502,47 @@ export default function MultiplayerConvoyMap({
         )}
       </div>
 
-      {/* Legend Marker di Kiri Bawah - Rapi & Bersih */}
-      <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-[400] bg-[#030906]/95 backdrop-blur-xl border border-emerald-900/80 text-xs px-3 py-2 rounded-2xl text-emerald-300 flex items-center gap-3 sm:gap-4 shadow-xl font-mono">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 border border-white" />
-          <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200">Anda</span>
+      {/* Mobile Scroll Assistant Toggle & Legend Marker di Bawah */}
+      <div className="absolute bottom-3 left-3 right-3 sm:right-auto z-20 flex items-center justify-between sm:justify-start gap-2">
+        {/* Legend Marker */}
+        <div className="bg-[#030906]/95 backdrop-blur-xl border border-emerald-900/80 text-xs px-3 py-2 rounded-2xl text-emerald-300 flex items-center gap-2.5 sm:gap-4 shadow-xl font-mono">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 border border-white" />
+            <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200">Anda</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-teal-600 to-slate-800 border border-emerald-400" />
+            <span className="text-[10px] sm:text-[11px] font-bold text-emerald-300">Teman</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 border border-white" />
+            <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200">Tujuan</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-teal-600 to-slate-800 border border-emerald-400" />
-          <span className="text-[10px] sm:text-[11px] font-bold text-emerald-300">Teman</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 border border-white" />
-          <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200">Tujuan</span>
-        </div>
+
+        {/* Mobile Gesture Scroll Switcher */}
+        <button
+          onClick={() => setIsMapInteractable(!isMapInteractable)}
+          title="Kunci/Buka interaksi peta agar mudah scroll halaman di HP"
+          className={`flex items-center gap-1 px-2.5 py-2 rounded-2xl text-[10px] font-bold font-mono transition shadow-xl border cursor-pointer ${
+            isMapInteractable
+              ? 'bg-[#040c08]/95 border-emerald-700/60 text-emerald-300'
+              : 'bg-emerald-500 text-black border-white shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+          }`}
+        >
+          {isMapInteractable ? (
+            <>
+              <Unlock className="w-3 h-3 text-emerald-400" />
+              <span className="hidden sm:inline">Peta Aktif</span>
+              <span className="sm:hidden">Mode Peta</span>
+            </>
+          ) : (
+            <>
+              <Lock className="w-3 h-3 text-black fill-black" />
+              <span>Scroll Bebas</span>
+            </>
+          )}
+        </button>
       </div>
     </div>
   );

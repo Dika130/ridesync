@@ -37,6 +37,18 @@ export interface ConvoyGroup {
   created_at: string;
 }
 
+export interface ConvoyMessage {
+  id: string;
+  group_code: string;
+  sender_id: string;
+  sender_name: string;
+  vehicle_type?: 'Motor' | 'Mobil' | string;
+  message: string;
+  is_urgent?: boolean;
+  created_at: string;
+}
+
+
 export interface Rider {
   id: string;
   phone_number: string;
