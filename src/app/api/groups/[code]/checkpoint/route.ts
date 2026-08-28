@@ -9,7 +9,18 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { name, latitude, longitude, description } = body;
+    const { name, latitude, longitude, description, memberId } = body;
+
+    const group = globalThis.globalConvoyGroups ? globalThis.globalConvoyGroups.get(code) : null;
+    const member = group?.members.find((m) => m.id === memberId);
+
+    // Validasi: Hanya Road Captain / Pembuat Grup yang boleh mengubah titik tujuan
+    if (member && member.role !== 'Road Captain' && member.name !== group?.created_by) {
+      return NextResponse.json(
+        { error: 'Hanya Road Captain / Pembuat Grup yang berhak mengatur titik tujuan.' },
+        { status: 403 }
+      );
+    }
 
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
@@ -30,8 +41,8 @@ export async function POST(
     }
 
     if (globalThis.globalConvoyGroups && globalThis.globalConvoyGroups.has(code)) {
-      const group = globalThis.globalConvoyGroups.get(code)!;
-      group.checkpoint = {
+      const g = globalThis.globalConvoyGroups.get(code)!;
+      g.checkpoint = {
         name: name || 'Titik Kumpul Konvoi',
         latitude: lat,
         longitude: lng,

@@ -13,15 +13,31 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Gunakan OSRM Routing Engine publik berkecepatan tinggi
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+    let routeUrl = '';
 
-    const res = await fetch(osrmUrl, {
+    if (vehicleMode === 'motor') {
+      // 🏍️ MODE MOTOR: Gunakan OpenStreetMap Bike/Two-Wheeler Router (Bebas Tol / Menghindari Jalan Tol)
+      routeUrl = `https://routing.openstreetmap.de/routed-bike/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+    } else {
+      // 🚗 MODE MOBIL: Gunakan OSRM Car Router (Bisa Lewat Jalan Tol / Jalur Cepat)
+      routeUrl = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+    }
+
+    let res = await fetch(routeUrl, {
       headers: { 'User-Agent': 'RideSync-App/2.0' },
       next: { revalidate: 30 }
     });
 
-    if (!res.ok) throw new Error('Gagal mengambil rute dari OSRM');
+    // Fallback jika routed-bike sedang sibuk: gunakan OSRM biasa
+    if (!res.ok && vehicleMode === 'motor') {
+      routeUrl = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+      res = await fetch(routeUrl, {
+        headers: { 'User-Agent': 'RideSync-App/2.0' },
+        next: { revalidate: 30 }
+      });
+    }
+
+    if (!res.ok) throw new Error('Gagal mengambil rute navigasi');
 
     const data = await res.json();
     if (!data.routes || data.routes.length === 0) {
@@ -29,22 +45,19 @@ export async function GET(req: NextRequest) {
     }
 
     const route = data.routes[0];
-    // GeoJSON coordinates adalah [lng, lat], ubah ke [lat, lng] untuk Leaflet
     const latLngCoordinates = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
 
-    const distanceMeters = route.distance; // meters
-    const durationSeconds = route.duration; // seconds
-
+    const distanceMeters = route.distance;
+    const durationSeconds = route.duration;
     const distanceKm = distanceMeters / 1000;
 
-    // Estimasi kecepatan: motor rata-rata lebih lincah di kemacetan kota
     let adjustedDurationSeconds = durationSeconds;
     if (vehicleMode === 'motor') {
-      // Kecepatan motor di lalu lintas padat 15-20% lebih gesit
-      adjustedDurationSeconds = durationSeconds * 0.85;
+      // Motor di jalur non-tol Indonesia rata-rata 40-50 km/h
+      adjustedDurationSeconds = (distanceKm / 42) * 3600;
     }
 
-    const totalMinutes = Math.round(adjustedDurationSeconds / 60);
+    const totalMinutes = Math.max(1, Math.round(adjustedDurationSeconds / 60));
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
 
@@ -65,7 +78,6 @@ export async function GET(req: NextRequest) {
       coordinates: latLngCoordinates
     });
   } catch (error: any) {
-    // Fallback garis lurus jika API rute offline
     const p1 = [parseFloat(fromLat), parseFloat(fromLng)];
     const p2 = [parseFloat(toLat), parseFloat(toLng)];
     return NextResponse.json({

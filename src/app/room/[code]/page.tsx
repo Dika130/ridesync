@@ -26,7 +26,9 @@ import {
   Play,
   StopCircle,
   MapPin,
-  Clock
+  Clock,
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
 
 const MultiplayerConvoyMap = dynamic(() => import('@/components/MultiplayerConvoyMap'), {
@@ -105,7 +107,7 @@ export default function ConvoyRoomPage() {
     }
   }, []);
 
-  // Fetch Group Data & Poll
+  // Fetch Group Data & Auto-Recovery Engine
   useEffect(() => {
     if (!groupCode) return;
 
@@ -116,10 +118,47 @@ export default function ConvoyRoomPage() {
           const data = await res.json();
           setGroup(data);
           setError(null);
+          // Simpan ke cache lokal agar tidak pernah hilang
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data));
+          }
         } else {
+          // AUTO-RECOVERY: Jika server mereset / cold start, pulihkan dari cache lokal!
+          if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem(`ridesync_group_cache_${groupCode}`);
+            if (cached) {
+              try {
+                const parsedGroup = JSON.parse(cached);
+                setGroup(parsedGroup);
+                setError(null);
+
+                // Sync balik ke server
+                fetch('/api/groups', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    name: parsedGroup.name,
+                    creatorName: parsedGroup.created_by,
+                    checkpoint: parsedGroup.checkpoint
+                  })
+                }).catch(() => {});
+                return;
+              } catch (e) {}
+            }
+          }
           setError('Grup konvoi tidak ditemukan.');
         }
       } catch (e) {
+        if (typeof window !== 'undefined') {
+          const cached = localStorage.getItem(`ridesync_group_cache_${groupCode}`);
+          if (cached) {
+            try {
+              setGroup(JSON.parse(cached));
+              setError(null);
+              return;
+            } catch (err) {}
+          }
+        }
         setError('Gagal memuat grup konvoi.');
       } finally {
         setLoading(false);
@@ -210,7 +249,10 @@ export default function ConvoyRoomPage() {
         const data = await res.json();
         setMyMemberId(data.memberId);
         localStorage.setItem(`ridesync_member_${groupCode}`, data.memberId);
-        if (data.group) setGroup(data.group);
+        if (data.group) {
+          setGroup(data.group);
+          localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data.group));
+        }
       } else {
         alert('Gagal bergabung ke grup konvoi.');
       }
@@ -236,16 +278,31 @@ export default function ConvoyRoomPage() {
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
+  const myMember = group?.members.find((m) => m.id === myMemberId);
+  const isCaptain = myMember?.role === 'Road Captain' || group?.created_by === myMember?.name;
+
   const handleSaveCheckpoint = async (cp: Checkpoint) => {
+    if (!isCaptain) {
+      alert('Hanya Road Captain / Pembuat Grup yang berhak mengatur titik tujuan.');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/groups/${groupCode}/checkpoint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cp)
+        body: JSON.stringify({ ...cp, memberId: myMemberId })
       });
       if (res.ok) {
         const data = await res.json();
-        if (group) setGroup({ ...group, checkpoint: data.checkpoint });
+        if (group) {
+          const updated = { ...group, checkpoint: data.checkpoint };
+          setGroup(updated);
+          localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(updated));
+        }
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Gagal mengubah titik tujuan.');
       }
     } catch (e) {}
   };
@@ -381,8 +438,6 @@ export default function ConvoyRoomPage() {
   // ==============================================================================
   // MULTIPLAYER CONVOY ROOM DASHBOARD (Semua Rider Melihat Peta Bersama)
   // ==============================================================================
-  const myMember = group.members.find((m) => m.id === myMemberId);
-
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-100 selection:bg-cyan-500 selection:text-black">
       {/* Top Navbar Header */}
@@ -405,20 +460,29 @@ export default function ConvoyRoomPage() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                {group.members.length} Rider Terhubung • Anda: <b className="text-cyan-400">{myMember?.name}</b>
+                {group.members.length} Rider Terhubung • Anda: <b className="text-cyan-400">{myMember?.name}</b> {isCaptain && <span className="text-amber-400 font-bold">(Road Captain)</span>}
               </p>
             </div>
           </div>
 
-          {/* Action Buttons: Mode, Checkpoint, Share */}
+          {/* Action Buttons: Set Checkpoint (Captain Only) & Share */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsCheckpointModalOpen(true)}
-              className="flex items-center gap-1.5 py-1.5 px-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition"
-            >
-              <Flag className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Set Tujuan</span>
-            </button>
+            {isCaptain ? (
+              <button
+                onClick={() => setIsCheckpointModalOpen(true)}
+                title="Atur Titik Tujuan Konvoi (Hanya Road Captain)"
+                className="flex items-center gap-1.5 py-1.5 px-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition shadow-lg shadow-amber-950/30"
+              >
+                <Flag className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Set Tujuan (Captain)</span>
+                <span className="sm:hidden">Set Tujuan</span>
+              </button>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5 py-1.5 px-2.5 bg-slate-900 border border-slate-800 text-[11px] text-slate-400 rounded-xl">
+                <Lock className="w-3 h-3 text-slate-500" />
+                <span>Tujuan diatur Captain</span>
+              </div>
+            )}
 
             <button
               onClick={handleCopyGroupLink}
@@ -451,7 +515,14 @@ export default function ConvoyRoomPage() {
                   <Flag className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Titik Tujuan Bersama</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Titik Tujuan Bersama</span>
+                    {isCaptain && (
+                      <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-bold">
+                        Bisa Diedit
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-sm font-black text-white truncate">{group.checkpoint.name}</h3>
                   <p className="text-[11px] text-slate-400 truncate">{group.checkpoint.description || 'Titik Kumpul / Rest Area'}</p>
                 </div>
@@ -540,14 +611,16 @@ export default function ConvoyRoomPage() {
         </section>
       </main>
 
-      {/* Checkpoint Modal */}
-      <CheckpointModal
-        isOpen={isCheckpointModalOpen}
-        onClose={() => setIsCheckpointModalOpen(false)}
-        currentCheckpoint={group.checkpoint}
-        onSave={handleSaveCheckpoint}
-        userCurrentLocation={myMember ? { latitude: myMember.latitude, longitude: myMember.longitude } : undefined}
-      />
+      {/* Checkpoint Modal (Hanya jika Captain) */}
+      {isCaptain && (
+        <CheckpointModal
+          isOpen={isCheckpointModalOpen}
+          onClose={() => setIsCheckpointModalOpen(false)}
+          currentCheckpoint={group.checkpoint}
+          onSave={handleSaveCheckpoint}
+          userCurrentLocation={myMember ? { latitude: myMember.latitude, longitude: myMember.longitude } : undefined}
+        />
+      )}
     </div>
   );
 }
