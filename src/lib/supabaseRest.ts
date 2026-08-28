@@ -184,3 +184,24 @@ export async function deleteMemberFromDb(memberId: string) {
   }
 }
 
+// 7. Bubarkan Grup & Hapus Semua Anggota (Saat Road Captain Keluar)
+export async function disbandGroupInDb(code: string) {
+  try {
+    // Hapus semua members di grup ini
+    await fetch(`${SUPABASE_URL}/rest/v1/group_members?group_code=eq.${encodeURIComponent(code)}`, {
+      method: 'DELETE',
+      headers
+    });
+    // Hapus grup
+    await fetch(`${SUPABASE_URL}/rest/v1/groups?code=eq.${encodeURIComponent(code)}`, {
+      method: 'DELETE',
+      headers
+    });
+    return true;
+  } catch (e) {
+    console.error('disbandGroupInDb error:', e);
+    return false;
+  }
+}
+
+

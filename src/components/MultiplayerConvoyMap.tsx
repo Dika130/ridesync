@@ -125,7 +125,6 @@ export default function MultiplayerConvoyMap({
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // Dark Eco OLED Map Tiles
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
@@ -301,12 +300,12 @@ export default function MultiplayerConvoyMap({
       <div ref={mapContainerRef} className="w-full h-full" />
 
       {/* Floating Toolbar Navigasi di Kanan Atas */}
-      <div className="absolute top-4 right-4 z-[500] flex flex-col gap-2">
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[500] flex flex-col gap-2 items-end">
         {/* Toggle Mode Jalur Motor vs Mobil */}
         <div className="flex bg-[#040c08]/95 backdrop-blur-xl border border-emerald-900/80 p-1 rounded-2xl shadow-xl">
           <button
             onClick={() => onToggleVehicleMode('motor')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               vehicleMode === 'motor'
                 ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-black shadow-md'
                 : 'text-emerald-400/60 hover:text-emerald-200'
@@ -317,7 +316,7 @@ export default function MultiplayerConvoyMap({
           </button>
           <button
             onClick={() => onToggleVehicleMode('mobil')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               vehicleMode === 'mobil'
                 ? 'bg-cyan-500 text-black shadow-md'
                 : 'text-emerald-400/60 hover:text-emerald-200'
@@ -332,7 +331,7 @@ export default function MultiplayerConvoyMap({
           <button
             onClick={handleCenterCheckpoint}
             title="Pusatkan ke Titik Tujuan"
-            className="flex items-center gap-2 px-3.5 py-2 bg-[#040c08]/95 backdrop-blur-xl border border-emerald-500/40 text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#040c08]/95 backdrop-blur-xl border border-emerald-500/40 text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95 cursor-pointer"
           >
             <Flag className="w-4 h-4 text-emerald-400" />
             <span>Titik Tujuan</span>
@@ -342,7 +341,7 @@ export default function MultiplayerConvoyMap({
         <button
           onClick={handleCenterMe}
           title="Pusatkan ke Posisi Anda"
-          className="flex items-center gap-2 px-3.5 py-2 bg-[#040c08]/95 backdrop-blur-xl border border-emerald-500/40 text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95 cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-2 bg-[#040c08]/95 backdrop-blur-xl border border-emerald-500/40 text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95 cursor-pointer"
         >
           <Crosshair className="w-4 h-4 text-emerald-400" />
           <span>Posisi Saya</span>
@@ -351,67 +350,79 @@ export default function MultiplayerConvoyMap({
         <button
           onClick={handleFitAll}
           title="Lihat Seluruh Anggota Konvoi & Jalur"
-          className="flex items-center gap-2 px-3.5 py-2 bg-[#040c08]/90 backdrop-blur border border-emerald-900 text-emerald-300 hover:text-white hover:bg-emerald-800 rounded-2xl shadow-xl transition text-xs font-semibold cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-2 bg-[#040c08]/90 backdrop-blur border border-emerald-900 text-emerald-300 hover:text-white hover:bg-emerald-800 rounded-2xl shadow-xl transition text-xs font-semibold cursor-pointer"
         >
           <Maximize2 className="w-4 h-4 text-emerald-400" />
           <span>Lihat Rute</span>
         </button>
       </div>
 
-      {/* Info Route & ETA Banner di Kiri Atas */}
-      <div className="absolute top-4 left-4 z-[500] flex flex-col gap-2 max-w-xs sm:max-w-sm">
-        {/* Banner Navigasi Rute Tercepat */}
+      {/* Info Route & ETA Banner di Kiri Atas - DESAIN RAPI, BERSIH, TANPA OVERLAP */}
+      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-[500] flex flex-col gap-2 max-w-[240px] sm:max-w-[300px]">
         {routeInfo && routeInfo.distanceFormatted ? (
-          <div className="bg-[#030906]/95 backdrop-blur-xl border border-emerald-500/40 p-3 rounded-2xl shadow-[0_0_25px_rgba(16,185,129,0.2)] space-y-1.5 animate-in fade-in">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
-                <Navigation2 className="w-3.5 h-3.5 rotate-45 text-emerald-400" />
-                <span>
-                  Jalur {isShowingMyRoute ? 'Anda' : activeFocusMember?.name} ({vehicleMode === 'motor' ? '🏍️ Motor' : '🚗 Mobil'})
+          <div className="bg-[#030906]/95 backdrop-blur-2xl border border-emerald-500/40 p-3 sm:p-3.5 rounded-2xl shadow-[0_4px_25px_rgba(0,0,0,0.8)] space-y-2 animate-in fade-in">
+            {/* Header Title */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Navigation2 className="w-3.5 h-3.5 rotate-45 text-emerald-400 shrink-0" />
+                <span className="text-[11px] font-black tracking-tight text-emerald-300 truncate">
+                  Jalur {isShowingMyRoute ? 'Anda' : activeFocusMember?.name}
                 </span>
               </div>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.2 rounded-full font-bold font-mono">
-                ECO-NAV
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-md font-bold font-mono uppercase shrink-0">
+                {vehicleMode === 'motor' ? '🏍️ MOTOR' : '🚗 MOBIL'}
               </span>
             </div>
 
-            <div className="flex items-center justify-between pt-1 border-t border-emerald-950">
-              <div className="flex items-center gap-1.5 text-xs text-emerald-200">
-                <Ruler className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-bold text-white font-mono">{routeInfo.distanceFormatted}</span>
+            {/* Metrik Jarak & ETA dalam 2 Kotak Bersih Terpisah */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-emerald-950/80">
+              <div className="bg-[#020704] border border-emerald-900/60 p-2 rounded-xl text-left">
+                <div className="flex items-center gap-1 text-[10px] text-emerald-400/70 font-mono mb-0.5">
+                  <Ruler className="w-3 h-3 text-emerald-400" />
+                  <span>Jarak</span>
+                </div>
+                <span className="text-xs sm:text-sm font-bold text-white font-mono block truncate">
+                  {routeInfo.distanceFormatted}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-emerald-200">
-                <Clock className="w-3.5 h-3.5 text-teal-400" />
-                <span className="font-bold text-teal-300 font-mono">ETA: {routeInfo.durationFormatted}</span>
+
+              <div className="bg-[#020704] border border-emerald-900/60 p-2 rounded-xl text-left">
+                <div className="flex items-center gap-1 text-[10px] text-teal-400/70 font-mono mb-0.5">
+                  <Clock className="w-3 h-3 text-teal-400" />
+                  <span>Estimasi</span>
+                </div>
+                <span className="text-xs sm:text-sm font-bold text-teal-300 font-mono block truncate">
+                  {routeInfo.durationFormatted}
+                </span>
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-[#030906]/90 backdrop-blur border border-emerald-900/80 rounded-full shadow-lg">
-            <span className="relative flex h-2.5 w-2.5">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#030906]/95 backdrop-blur-xl border border-emerald-900/80 rounded-full shadow-lg">
+            <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <span className="text-xs font-bold text-emerald-300 font-mono">
+            <span className="text-[11px] font-bold text-emerald-300 font-mono">
               Eco-Convoy Telemetry Active
             </span>
           </div>
         )}
       </div>
 
-      {/* Legend Marker di Kiri Bawah */}
-      <div className="absolute bottom-4 left-4 z-[500] bg-[#030906]/90 backdrop-blur border border-emerald-900/80 text-xs px-3.5 py-2.5 rounded-2xl text-emerald-300 flex flex-wrap items-center gap-4 shadow-xl font-mono">
+      {/* Legend Marker di Kiri Bawah - Rapi & Bersih */}
+      <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-[500] bg-[#030906]/95 backdrop-blur-xl border border-emerald-900/80 text-xs px-3 py-2 rounded-2xl text-emerald-300 flex items-center gap-3 sm:gap-4 shadow-xl font-mono">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 border border-white" />
-          <span className="text-[11px] font-bold text-emerald-200">👑 Anda</span>
+          <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 border border-white" />
+          <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200">Anda</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-teal-600 to-slate-800 border border-emerald-400" />
-          <span className="text-[11px] font-bold text-emerald-300">🏍️ Teman</span>
+          <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-teal-600 to-slate-800 border border-emerald-400" />
+          <span className="text-[10px] sm:text-[11px] font-bold text-emerald-300">Teman</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 border border-white" />
-          <span className="text-[11px] font-bold text-emerald-200">🚩 Tujuan</span>
+          <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 border border-white" />
+          <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200">Tujuan</span>
         </div>
       </div>
     </div>

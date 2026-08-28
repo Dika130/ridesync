@@ -32,7 +32,9 @@ import {
   LogOut,
   AlertTriangle,
   Leaf,
-  Zap
+  Zap,
+  UserX,
+  Shield
 } from 'lucide-react';
 
 const MultiplayerConvoyMap = dynamic(() => import('@/components/MultiplayerConvoyMap'), {
@@ -82,9 +84,13 @@ export default function ConvoyRoomPage() {
   // Checkpoint Modal
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
 
-  // Leave Group Modal
+  // Leave / Disband Group Modal
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveLoading, setLeaveLoading] = useState(false);
+
+  // Kick Member Modal
+  const [memberToKick, setMemberToKick] = useState<GroupMember | null>(null);
+  const [kickLoading, setKickLoading] = useState(false);
 
   // Share link state
   const [copied, setCopied] = useState(false);
@@ -129,31 +135,23 @@ export default function ConvoyRoomPage() {
           if (typeof window !== 'undefined') {
             localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data));
           }
-        } else {
-          if (typeof window !== 'undefined') {
-            const cached = localStorage.getItem(`ridesync_group_cache_${groupCode}`);
-            if (cached) {
-              try {
-                const parsedGroup = JSON.parse(cached);
-                setGroup(parsedGroup);
-                setError(null);
-                return;
-              } catch (e) {}
-            }
+
+          // Cek apakah akun saya telah dikeluarkan oleh Captain
+          if (myMemberId && data.members && !data.members.some((m: any) => m.id === myMemberId)) {
+            localStorage.removeItem(`ridesync_member_${groupCode}`);
+            setMyMemberId(null);
+            alert('Anda telah dikeluarkan dari grup konvoi ini oleh Road Captain.');
+            router.push('/');
           }
-          setError('Grup konvoi tidak ditemukan.');
+        } else {
+          // Jika grup dibubarkan atau tidak ada
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(`ridesync_group_cache_${groupCode}`);
+            localStorage.removeItem(`ridesync_member_${groupCode}`);
+          }
+          setError('Grup konvoi tidak ditemukan atau telah dibubarkan oleh Road Captain.');
         }
       } catch (e) {
-        if (typeof window !== 'undefined') {
-          const cached = localStorage.getItem(`ridesync_group_cache_${groupCode}`);
-          if (cached) {
-            try {
-              setGroup(JSON.parse(cached));
-              setError(null);
-              return;
-            } catch (err) {}
-          }
-        }
         setError('Gagal memuat grup konvoi.');
       } finally {
         setLoading(false);
@@ -163,7 +161,7 @@ export default function ConvoyRoomPage() {
     fetchGroup();
     const interval = setInterval(fetchGroup, 2000);
     return () => clearInterval(interval);
-  }, [groupCode]);
+  }, [groupCode, myMemberId, router]);
 
   // Broadcast My GPS Location continuously
   useEffect(() => {
@@ -282,7 +280,10 @@ export default function ConvoyRoomPage() {
     }
   };
 
-  // Handle Leave Group & Delete Member
+  const myMember = group?.members.find((m) => m.id === myMemberId);
+  const isCaptain = myMember?.role === 'Road Captain' || group?.created_by === myMember?.name;
+
+  // Handle Leave Group / Disband Group (Jika Road Captain keluar -> grup bubar)
   const handleConfirmLeave = async () => {
     setLeaveLoading(true);
     try {
@@ -291,11 +292,21 @@ export default function ConvoyRoomPage() {
           navigator.geolocation.clearWatch(watchIdRef.current);
         }
 
-        await fetch(`/api/groups/${groupCode}/leave`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ memberId: myMemberId })
-        });
+        if (isCaptain) {
+          // BUBARKAN GRUP KARENA ROAD CAPTAIN KELUAR
+          await fetch(`/api/groups/${groupCode}/disband`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ memberId: myMemberId })
+          });
+        } else {
+          // ANGGOTA BIASA KELUAR
+          await fetch(`/api/groups/${groupCode}/leave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ memberId: myMemberId })
+          });
+        }
 
         localStorage.removeItem(`ridesync_member_${groupCode}`);
         localStorage.removeItem(`ridesync_group_cache_${groupCode}`);
@@ -309,13 +320,45 @@ export default function ConvoyRoomPage() {
     }
   };
 
+  // Handle Kick Rider by Road Captain
+  const handleConfirmKick = async () => {
+    if (!memberToKick || !myMemberId) return;
+
+    setKickLoading(true);
+    try {
+      const res = await fetch(`/api/groups/${groupCode}/kick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterMemberId: myMemberId,
+          targetMemberId: memberToKick.id
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.group) {
+          setGroup(data.group);
+          localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data.group));
+        }
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Gagal mengeluarkan rider.');
+      }
+    } catch (e) {
+      alert('Terjadi kesalahan jaringan.');
+    } finally {
+      setKickLoading(false);
+      setMemberToKick(null);
+    }
+  };
+
   // Generate Direct Public URL (Without Vercel Auth requirement)
   const getPublicShareUrl = () => {
     if (typeof window === 'undefined') return '';
     if (window.location.hostname === 'localhost') {
       return `${window.location.origin}/room/${groupCode}`;
     }
-    // Always share official public production domain
     return `https://ridesync-web.vercel.app/room/${groupCode}`;
   };
 
@@ -333,9 +376,6 @@ export default function ConvoyRoomPage() {
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
-
-  const myMember = group?.members.find((m) => m.id === myMemberId);
-  const isCaptain = myMember?.role === 'Road Captain' || group?.created_by === myMember?.name;
 
   const handleSaveCheckpoint = async (cp: Checkpoint) => {
     if (!isCaptain) {
@@ -381,11 +421,11 @@ export default function ConvoyRoomPage() {
           </div>
           <h2 className="text-lg font-bold text-white">Grup Konvoi Tidak Ditemukan</h2>
           <p className="text-xs text-emerald-400/60 leading-relaxed">
-            Kode grup konvoi <b className="text-emerald-400">{groupCode}</b> tidak valid atau telah selesai.
+            {error || `Kode grup konvoi ${groupCode} tidak valid atau telah selesai.`}
           </p>
           <button
             onClick={() => router.push('/')}
-            className="py-2.5 px-4 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 border border-emerald-800 rounded-2xl text-xs font-bold transition inline-flex items-center gap-2"
+            className="py-2.5 px-4 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 border border-emerald-800 rounded-2xl text-xs font-bold transition inline-flex items-center gap-2 cursor-pointer font-mono"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Kembali ke Beranda</span>
@@ -504,11 +544,11 @@ export default function ConvoyRoomPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsLeaveModalOpen(true)}
-              title="Keluar dari Grup Konvoi"
+              title={isCaptain ? 'Bubarkan & Keluar Konvoi' : 'Keluar dari Konvoi'}
               className="flex items-center gap-1.5 py-1.5 px-3 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-red-300 hover:text-white rounded-xl text-xs font-bold transition shadow font-mono cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Keluar Grup</span>
+              <span className="hidden sm:inline">{isCaptain ? 'Bubarkan Grup' : 'Keluar Grup'}</span>
             </button>
 
             <div>
@@ -639,15 +679,28 @@ export default function ConvoyRoomPage() {
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <div className="flex items-center justify-end gap-1.5 text-xs font-mono font-bold text-white">
-                        <Gauge className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>{member.speed ? Math.round(member.speed) : 0} km/h</span>
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      <div className="text-right">
+                        <div className="flex items-center justify-end gap-1.5 text-xs font-mono font-bold text-white">
+                          <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{member.speed ? Math.round(member.speed) : 0} km/h</span>
+                        </div>
+                        {distanceToCp !== null && (
+                          <span className="text-[10px] text-teal-400 block font-mono mt-0.5">
+                            Ke Tujuan: {distanceToCp < 1 ? `${Math.round(distanceToCp * 1000)}m` : `${distanceToCp.toFixed(1)}km`}
+                          </span>
+                        )}
                       </div>
-                      {distanceToCp !== null && (
-                        <span className="text-[10px] text-teal-400 block font-mono mt-0.5">
-                          Ke Tujuan: {distanceToCp < 1 ? `${Math.round(distanceToCp * 1000)}m` : `${distanceToCp.toFixed(1)}km`}
-                        </span>
+
+                      {/* Tombol Keluarkan Rider (Khusus Road Captain) */}
+                      {isCaptain && !isMe && (
+                        <button
+                          onClick={() => setMemberToKick(member)}
+                          title={`Keluarkan ${member.name} dari konvoi`}
+                          className="p-1.5 rounded-xl bg-red-950/40 hover:bg-red-900 border border-red-800/60 text-red-400 hover:text-white transition cursor-pointer"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </div>
                   </div>
@@ -682,7 +735,7 @@ export default function ConvoyRoomPage() {
         />
       )}
 
-      {/* Modal Konfirmasi Keluar dari Grup */}
+      {/* Modal Konfirmasi Keluar / Bubarkan Grup */}
       {isLeaveModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="max-w-sm w-full bg-[#050d09] border border-red-900/50 rounded-3xl p-6 shadow-2xl space-y-4">
@@ -691,9 +744,13 @@ export default function ConvoyRoomPage() {
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-black text-white">Keluar dari Konvoi?</h3>
+              <h3 className="text-base font-black text-white">
+                {isCaptain ? 'Bubarkan Grup Konvoi?' : 'Keluar dari Konvoi?'}
+              </h3>
               <p className="text-xs text-emerald-300/60 leading-relaxed">
-                Posisi motor Anda akan dihapus dari peta rombongan dan pelacakan GPS akan dihentikan.
+                {isCaptain
+                  ? '⚠️ Anda adalah Road Captain. Jika Anda keluar, grup konvoi ini akan BUBAR dan seluruh anggota akan otomatis dikeluarkan.'
+                  : 'Posisi motor Anda akan dihapus dari peta rombongan dan pelacakan GPS akan dihentikan.'}
               </p>
             </div>
 
@@ -715,7 +772,49 @@ export default function ConvoyRoomPage() {
                 ) : (
                   <>
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Ya, Keluar</span>
+                    <span>{isCaptain ? 'Ya, Bubarkan' : 'Ya, Keluar'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Keluarkan Rider (Kick) */}
+      {memberToKick && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="max-w-sm w-full bg-[#050d09] border border-red-900/50 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto">
+              <UserX className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-black text-white">Keluarkan Anggota?</h3>
+              <p className="text-xs text-emerald-300/60 leading-relaxed">
+                Apakah Anda yakin ingin mengeluarkan <b className="text-white">{memberToKick.name}</b> ({memberToKick.motorcycle_model}) dari konvoi?
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setMemberToKick(null)}
+                disabled={kickLoading}
+                className="flex-1 py-2.5 px-4 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 rounded-xl text-xs font-bold transition font-mono cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmKick}
+                disabled={kickLoading}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-red-950 font-mono cursor-pointer"
+              >
+                {kickLoading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <UserX className="w-3.5 h-3.5" />
+                    <span>Keluarkan</span>
                   </>
                 )}
               </button>
