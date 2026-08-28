@@ -825,8 +825,9 @@ function playConvoyAlertSound(isUrgent?: boolean) {
               <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
               <span className="hidden sm:inline">Obrolan</span>
               {unreadChatCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-bounce shadow">
-                  {unreadChatCount}
+                <span className="relative flex h-2.5 w-2.5 ml-0.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white"></span>
                 </span>
               )}
             </button>
@@ -1061,40 +1062,6 @@ function playConvoyAlertSound(isUrgent?: boolean) {
                 className="p-1.5 text-emerald-400/60 hover:text-white rounded-xl hover:bg-emerald-950 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Quick Broadcast Preset Pills */}
-            <div className="p-2.5 bg-[#030805] border-b border-emerald-950/80 flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono no-scrollbar">
-              <button
-                onClick={() => handleSendMessage('🚨 Butuh Bantuan / Motor Bermasalah!', true)}
-                className="px-2.5 py-1 bg-red-950/80 hover:bg-red-900 border border-red-700/60 text-red-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
-              >
-                🚨 Butuh Bantuan
-              </button>
-              <button
-                onClick={() => handleSendMessage('⛽ Isi Bensin / SPBU Terdekat')}
-                className="px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-700/60 text-amber-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
-              >
-                ⛽ Isi Bensin
-              </button>
-              <button
-                onClick={() => handleSendMessage('☕ Istirahat / Rest Area Sebentar')}
-                className="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
-              >
-                ☕ Rest Area
-              </button>
-              <button
-                onClick={() => handleSendMessage('⚠️ Hati-hati Jalan Rusak / Licin!')}
-                className="px-2.5 py-1 bg-teal-950/80 hover:bg-teal-900 border border-teal-700/60 text-teal-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
-              >
-                ⚠️ Jalan Rusak
-              </button>
-              <button
-                onClick={() => handleSendMessage('👍 Siap Gas / Rombongan Lengkap')}
-                className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700/60 text-cyan-300 rounded-lg whitespace-nowrap font-bold transition cursor-pointer shrink-0"
-              >
-                👍 Siap Gas
               </button>
             </div>
 
