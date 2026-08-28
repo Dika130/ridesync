@@ -14,7 +14,7 @@ export interface GroupMember {
   motorcycle_model?: string;
   license_plate?: string;
   avatar_url?: string;
-  role: 'Road Captain' | 'Sweeper' | 'Anggota Konvoi' | 'Medis' | 'Logistik';
+  role: 'Road Captain' | 'Rider' | 'Anggota Konvoi' | string;
   latitude: number;
   longitude: number;
   accuracy?: number;

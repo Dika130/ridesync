@@ -35,7 +35,10 @@ import {
   Zap,
   UserX,
   Shield,
-  Eye
+  Eye,
+  Edit3,
+  Crown,
+  Sparkle
 } from 'lucide-react';
 
 const MultiplayerConvoyMap = dynamic(() => import('@/components/MultiplayerConvoyMap'), {
@@ -79,17 +82,27 @@ export default function ConvoyRoomPage() {
   const [myMemberId, setMyMemberId] = useState<string | null>(null);
   const [focusedMemberId, setFocusedMemberId] = useState<string | undefined>(undefined);
 
+  // Join form state (No more confusing role selection)
   const [joinName, setJoinName] = useState('');
   const [joinMotor, setJoinMotor] = useState('');
-  const [joinRole, setJoinRole] = useState<'Road Captain' | 'Sweeper' | 'Anggota Konvoi' | 'Medis' | 'Logistik'>('Anggota Konvoi');
   const [joinLoading, setJoinLoading] = useState(false);
 
   // Checkpoint Modal
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
 
+  // Edit Vehicle Modal
+  const [isEditVehicleOpen, setIsEditVehicleOpen] = useState(false);
+  const [editVehicleName, setEditVehicleName] = useState('');
+  const [editVehicleLoading, setEditVehicleLoading] = useState(false);
+
+  // Transfer Captain Modal
+  const [memberToMakeCaptain, setMemberToMakeCaptain] = useState<GroupMember | null>(null);
+  const [transferCaptainLoading, setTransferCaptainLoading] = useState(false);
+
   // Leave / Disband Group Modal
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveLoading, setLeaveLoading] = useState(false);
+  const isVoluntaryLeavingRef = useRef(false);
 
   // Kick Member Modal
   const [memberToKick, setMemberToKick] = useState<GroupMember | null>(null);
@@ -132,6 +145,8 @@ export default function ConvoyRoomPage() {
     if (!groupCode) return;
 
     async function fetchGroup() {
+      if (isVoluntaryLeavingRef.current) return;
+
       try {
         const res = await fetch(`/api/groups/${groupCode}`, { cache: 'no-store' });
         if (res.ok) {
@@ -144,20 +159,26 @@ export default function ConvoyRoomPage() {
 
           // Cek apakah akun saya telah dikeluarkan oleh Captain
           if (myMemberId && data.members && !data.members.some((m: any) => m.id === myMemberId)) {
-            localStorage.removeItem(`ridesync_member_${groupCode}`);
-            setMyMemberId(null);
-            alert('Anda telah dikeluarkan dari grup konvoi ini oleh Road Captain.');
-            router.push('/');
+            if (!isVoluntaryLeavingRef.current) {
+              localStorage.removeItem(`ridesync_member_${groupCode}`);
+              setMyMemberId(null);
+              alert('Anda telah dikeluarkan dari grup konvoi oleh Road Captain.');
+              router.push('/');
+            }
           }
         } else {
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem(`ridesync_group_cache_${groupCode}`);
-            localStorage.removeItem(`ridesync_member_${groupCode}`);
+          if (!isVoluntaryLeavingRef.current) {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem(`ridesync_group_cache_${groupCode}`);
+              localStorage.removeItem(`ridesync_member_${groupCode}`);
+            }
+            setError('Grup konvoi tidak ditemukan atau telah dibubarkan oleh Road Captain.');
           }
-          setError('Grup konvoi tidak ditemukan atau telah dibubarkan oleh Road Captain.');
         }
       } catch (e) {
-        setError('Gagal memuat grup konvoi.');
+        if (!isVoluntaryLeavingRef.current) {
+          setError('Gagal memuat grup konvoi.');
+        }
       } finally {
         setLoading(false);
       }
@@ -173,6 +194,8 @@ export default function ConvoyRoomPage() {
     if (!myMemberId || !groupCode || typeof navigator === 'undefined' || !navigator.geolocation) return;
 
     const onLocationSuccess = async (pos: GeolocationPosition) => {
+      if (isVoluntaryLeavingRef.current) return;
+
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       const speed = pos.coords.speed ? pos.coords.speed * 3.6 : 0;
@@ -246,7 +269,7 @@ export default function ConvoyRoomPage() {
           body: JSON.stringify({
             name: joinName,
             motorcycleModel: joinMotor || 'Motor Standar',
-            role: joinRole,
+            role: 'Rider',
             latitude: lat,
             longitude: lng
           })
@@ -291,6 +314,7 @@ export default function ConvoyRoomPage() {
 
   // Handle Leave Group / Disband Group (Jika Road Captain keluar -> grup bubar)
   const handleConfirmLeave = async () => {
+    isVoluntaryLeavingRef.current = true;
     setLeaveLoading(true);
     try {
       if (myMemberId && groupCode) {
@@ -321,6 +345,72 @@ export default function ConvoyRoomPage() {
       setLeaveLoading(false);
       setIsLeaveModalOpen(false);
       router.push('/');
+    }
+  };
+
+  // Handle Update My Vehicle
+  const handleSaveVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!myMemberId || !editVehicleName.trim()) return;
+
+    setEditVehicleLoading(true);
+    try {
+      const res = await fetch(`/api/groups/${groupCode}/vehicle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId: myMemberId,
+          vehicleModel: editVehicleName.trim()
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.group) {
+          setGroup(data.group);
+          localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data.group));
+        }
+        setIsEditVehicleOpen(false);
+      } else {
+        alert('Gagal memperbarui info kendaraan.');
+      }
+    } catch (e) {
+      alert('Terjadi kesalahan jaringan.');
+    } finally {
+      setEditVehicleLoading(false);
+    }
+  };
+
+  // Handle Transfer Road Captain
+  const handleConfirmTransferCaptain = async () => {
+    if (!memberToMakeCaptain || !myMemberId) return;
+
+    setTransferCaptainLoading(true);
+    try {
+      const res = await fetch(`/api/groups/${groupCode}/transfer-captain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterMemberId: myMemberId,
+          newCaptainMemberId: memberToMakeCaptain.id
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.group) {
+          setGroup(data.group);
+          localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data.group));
+        }
+        setMemberToMakeCaptain(null);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Gagal memindahkan jabatan Road Captain.');
+      }
+    } catch (e) {
+      alert('Terjadi kesalahan jaringan.');
+    } finally {
+      setTransferCaptainLoading(false);
     }
   };
 
@@ -423,9 +513,9 @@ export default function ConvoyRoomPage() {
           <div className="w-14 h-14 bg-red-500/10 text-red-400 rounded-2xl flex items-center justify-center mx-auto border border-red-500/20">
             <Users className="w-7 h-7" />
           </div>
-          <h2 className="text-lg font-bold text-white">Grup Konvoi Tidak Ditemukan</h2>
+          <h2 className="text-lg font-bold text-white">Grup Konvoi Selesai</h2>
           <p className="text-xs text-emerald-400/60 leading-relaxed">
-            {error || `Kode grup konvoi ${groupCode} tidak valid atau telah selesai.`}
+            {error || `Grup konvoi ${groupCode} telah selesai atau Anda telah keluar.`}
           </p>
           <button
             onClick={() => router.push('/')}
@@ -475,16 +565,16 @@ export default function ConvoyRoomPage() {
             </div>
           )}
 
-          {/* Form Gabung */}
+          {/* Form Gabung Ringkas & Praktis */}
           <form onSubmit={handleJoinSubmit} className="space-y-3.5 text-xs">
             <div>
               <label className="block text-emerald-200 font-semibold mb-1">
-                Nama Rider / Panggilan <span className="text-emerald-400">*</span>
+                Nama Anda / Panggilan <span className="text-emerald-400">*</span>
               </label>
               <input
                 type="text"
                 required
-                placeholder="Contoh: Budi / Dani ZX25R"
+                placeholder="Contoh: Dani / Budi"
                 value={joinName}
                 onChange={(e) => setJoinName(e.target.value)}
                 className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition"
@@ -492,35 +582,23 @@ export default function ConvoyRoomPage() {
             </div>
 
             <div>
-              <label className="block text-emerald-200 font-semibold mb-1">Model Kendaraan</label>
+              <label className="block text-emerald-200 font-semibold mb-1">
+                Kendaraan yang Dipakai <span className="text-emerald-400">*</span>
+              </label>
               <input
                 type="text"
-                placeholder="Contoh: Honda CBR250RR / Yamaha NMAX / Mobilio"
+                required
+                placeholder="Contoh: Kawasaki ZX25R / Yamaha NMAX / Honda Beat"
                 value={joinMotor}
                 onChange={(e) => setJoinMotor(e.target.value)}
                 className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition"
               />
             </div>
 
-            <div>
-              <label className="block text-emerald-200 font-semibold mb-1">Peran di Konvoi</label>
-              <select
-                value={joinRole}
-                onChange={(e: any) => setJoinRole(e.target.value)}
-                className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white focus:outline-none transition"
-              >
-                <option value="Anggota Konvoi">🏍️ Anggota Konvoi (Rider)</option>
-                <option value="Sweeper">🛡️ Sweeper (Pengawal Belakang)</option>
-                <option value="Road Captain">👑 Road Captain (Pemimpin)</option>
-                <option value="Medis">🚑 Tim Medis / Rescue</option>
-                <option value="Logistik">📦 Logistik</option>
-              </select>
-            </div>
-
             <button
               type="submit"
-              disabled={joinLoading || !joinName}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-black font-black rounded-2xl text-sm shadow-[0_0_25px_rgba(16,185,129,0.35)] transition flex items-center justify-center gap-2 transform active:scale-95 cursor-pointer"
+              disabled={joinLoading || !joinName || !joinMotor}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-black font-black rounded-2xl text-sm shadow-[0_0_25px_rgba(16,185,129,0.35)] transition flex items-center justify-center gap-2 transform active:scale-95 cursor-pointer disabled:opacity-50 mt-1"
             >
               {joinLoading ? (
                 <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
@@ -538,7 +616,7 @@ export default function ConvoyRoomPage() {
   }
 
   // ==============================================================================
-  // MULTIPLAYER CONVOY ROOM DASHBOARD (Semua Rider Melihat Peta Bersama)
+  // MULTIPLAYER CONVOY ROOM DASHBOARD
   // ==============================================================================
   return (
     <div className="min-h-screen bg-[#030705] flex flex-col font-sans text-emerald-50 selection:bg-emerald-400 selection:text-black">
@@ -568,7 +646,7 @@ export default function ConvoyRoomPage() {
             </div>
           </div>
 
-          {/* Action Buttons: Set Checkpoint (Captain Only) & Share */}
+          {/* Action Buttons */}
           <div className="flex items-center gap-2">
             {isCaptain ? (
               <button
@@ -640,13 +718,14 @@ export default function ConvoyRoomPage() {
                 <Radio className="w-4 h-4 text-emerald-400" />
                 <span>Rombongan Konvoi ({group.members.length} Rider)</span>
               </div>
-              <span className="text-[10px] text-emerald-500 font-mono">Klik Rider untuk Pantau Jalurnya</span>
+              <span className="text-[10px] text-emerald-500 font-mono">Klik untuk Pantau</span>
             </div>
 
-            <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
               {group.members.map((member) => {
                 const isMe = member.id === myMemberId;
                 const isFocused = member.id === focusedMemberId;
+                const memberIsCaptain = member.role === 'Road Captain' || group.created_by === member.name;
                 const distanceToCp = group.checkpoint
                   ? calculateDistance(member.latitude, member.longitude, group.checkpoint.latitude, group.checkpoint.longitude)
                   : null;
@@ -677,23 +756,36 @@ export default function ConvoyRoomPage() {
                           <h4 className="text-xs font-bold text-white truncate">
                             {member.name} {isMe && <span className="text-emerald-400">(Anda)</span>}
                           </h4>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold font-mono ${isFocused ? 'bg-emerald-400 text-black font-bold' : isMe ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-950 text-teal-300'}`}>
-                            {member.role}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-emerald-400/60 truncate mt-0.5">
-                          <span>{member.motorcycle_model || 'Motor Rider'}</span>
-                          {isFocused && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-300 font-bold font-mono">
-                              <Eye className="w-3 h-3 text-emerald-400" />
-                              <span>Melihat Jalur</span>
+                          {memberIsCaptain && (
+                            <span className="text-[10px] px-2 py-0.5 bg-gradient-to-r from-amber-400/20 to-emerald-400/20 border border-amber-400/50 text-amber-300 rounded-full font-extrabold font-mono flex items-center gap-1">
+                              <Crown className="w-3 h-3 text-amber-400 fill-amber-400" />
+                              <span>Captain</span>
                             </span>
+                          )}
+                        </div>
+
+                        {/* Info Kendaraan & Action Edit */}
+                        <div className="flex items-center gap-2 text-[11px] text-emerald-300/80 truncate mt-0.5">
+                          <span className="font-semibold">{member.motorcycle_model || 'Motor Standar'}</span>
+                          {isMe && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditVehicleName(member.motorcycle_model || '');
+                                setIsEditVehicleOpen(true);
+                              }}
+                              title="Ubah info kendaraan Anda"
+                              className="text-[10px] text-emerald-400 hover:text-white px-1.5 py-0.2 bg-emerald-950/80 border border-emerald-700/50 rounded-md inline-flex items-center gap-1 font-mono cursor-pointer"
+                            >
+                              <Edit3 className="w-2.5 h-2.5" />
+                              <span>Ubah</span>
+                            </button>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <div className="text-right">
                         <div className="flex items-center justify-end gap-1.5 text-xs font-mono font-bold text-white">
                           <Gauge className="w-3.5 h-3.5 text-emerald-400" />
@@ -706,18 +798,30 @@ export default function ConvoyRoomPage() {
                         )}
                       </div>
 
-                      {/* Tombol Keluarkan Rider (Khusus Road Captain) */}
+                      {/* Tombol Pindah Captain & Kick (Khusus Road Captain) */}
                       {isCaptain && !isMe && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMemberToKick(member);
-                          }}
-                          title={`Keluarkan ${member.name} dari konvoi`}
-                          className="p-1.5 rounded-xl bg-red-950/40 hover:bg-red-900 border border-red-800/60 text-red-400 hover:text-white transition cursor-pointer"
-                        >
-                          <UserX className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMemberToMakeCaptain(member);
+                            }}
+                            title={`Jadikan ${member.name} sebagai Road Captain baru`}
+                            className="p-1.5 rounded-xl bg-amber-950/40 hover:bg-amber-900 border border-amber-800/60 text-amber-400 hover:text-white transition cursor-pointer"
+                          >
+                            <Crown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMemberToKick(member);
+                            }}
+                            title={`Keluarkan ${member.name} dari konvoi`}
+                            className="p-1.5 rounded-xl bg-red-950/40 hover:bg-red-900 border border-red-800/60 text-red-400 hover:text-white transition cursor-pointer"
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -754,9 +858,105 @@ export default function ConvoyRoomPage() {
         />
       )}
 
-      {/* Modal Konfirmasi Keluar / Bubarkan Grup */}
+      {/* Modal Ubah Informasi Kendaraan */}
+      {isEditVehicleOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-in fade-in">
+          <div className="max-w-sm w-full bg-[#050d09] border border-emerald-900/80 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto">
+              <Bike className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-black text-white">Ubah Kendaraan Anda</h3>
+              <p className="text-xs text-emerald-300/60 leading-relaxed">
+                Rider lain akan melihat nama dan model kendaraan yang Anda kendarai.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveVehicle} className="space-y-3 pt-2 text-xs">
+              <div>
+                <label className="block text-emerald-200 font-semibold mb-1 font-mono">Model / Tipe Kendaraan</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: Kawasaki ZX25R / Yamaha NMAX / Mobil Avanza"
+                  value={editVehicleName}
+                  onChange={(e) => setEditVehicleName(e.target.value)}
+                  className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditVehicleOpen(false)}
+                  disabled={editVehicleLoading}
+                  className="flex-1 py-2.5 px-4 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 rounded-xl text-xs font-bold transition font-mono cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={editVehicleLoading || !editVehicleName.trim()}
+                  className="flex-1 py-2.5 px-4 bg-gradient-to-r from-emerald-400 to-teal-500 text-black font-extrabold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                >
+                  {editVehicleLoading ? (
+                    <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  ) : (
+                    <span>Simpan</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pindahkan Jabatan Road Captain */}
+      {memberToMakeCaptain && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-in fade-in">
+          <div className="max-w-sm w-full bg-[#050d09] border border-amber-900/60 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-2xl flex items-center justify-center mx-auto">
+              <Crown className="w-6 h-6 fill-amber-400" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-black text-white">Pindahkan Road Captain?</h3>
+              <p className="text-xs text-emerald-300/60 leading-relaxed">
+                Anda akan menyerahkan kendali kepemimpinan grup konvoi ini kepada <b className="text-white">{memberToMakeCaptain.name}</b>.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setMemberToMakeCaptain(null)}
+                disabled={transferCaptainLoading}
+                className="flex-1 py-2.5 px-4 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 rounded-xl text-xs font-bold transition font-mono cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmTransferCaptain}
+                disabled={transferCaptainLoading}
+                className="flex-1 py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-black font-extrabold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg font-mono cursor-pointer"
+              >
+                {transferCaptainLoading ? (
+                  <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Crown className="w-3.5 h-3.5" />
+                    <span>Ya, Jadikan Captain</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Keluar / Bubarkan Grup (Fully Isolated z-[9999]) */}
       {isLeaveModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-in fade-in">
           <div className="max-w-sm w-full bg-[#050d09] border border-red-900/50 rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
@@ -802,7 +1002,7 @@ export default function ConvoyRoomPage() {
 
       {/* Modal Konfirmasi Keluarkan Rider (Kick) */}
       {memberToKick && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-in fade-in">
           <div className="max-w-sm w-full bg-[#050d09] border border-red-900/50 rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto">
               <UserX className="w-6 h-6" />

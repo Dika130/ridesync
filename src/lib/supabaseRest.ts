@@ -187,12 +187,10 @@ export async function deleteMemberFromDb(memberId: string) {
 // 7. Bubarkan Grup & Hapus Semua Anggota (Saat Road Captain Keluar)
 export async function disbandGroupInDb(code: string) {
   try {
-    // Hapus semua members di grup ini
     await fetch(`${SUPABASE_URL}/rest/v1/group_members?group_code=eq.${encodeURIComponent(code)}`, {
       method: 'DELETE',
       headers
     });
-    // Hapus grup
     await fetch(`${SUPABASE_URL}/rest/v1/groups?code=eq.${encodeURIComponent(code)}`, {
       method: 'DELETE',
       headers
@@ -203,5 +201,66 @@ export async function disbandGroupInDb(code: string) {
     return false;
   }
 }
+
+// 8. Update Informasi Kendaraan Rider
+export async function updateMemberVehicleInDb(memberId: string, vehicleModel: string) {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/group_members?id=eq.${encodeURIComponent(memberId)}`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        motorcycle_model: vehicleModel,
+        updated_at: new Date().toISOString()
+      })
+    });
+    return res.ok;
+  } catch (e) {
+    console.error('updateMemberVehicleInDb error:', e);
+    return false;
+  }
+}
+
+// 9. Pindahkan Jabatan Road Captain ke Rider Lain
+export async function transferCaptainInDb(code: string, newCaptainName: string, oldCaptainId: string, newCaptainId: string) {
+  try {
+    // 1. Update nama created_by pada tabel groups
+    await fetch(`${SUPABASE_URL}/rest/v1/groups?code=eq.${encodeURIComponent(code)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        created_by: newCaptainName,
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    // 2. Update role member baru jadi Road Captain
+    await fetch(`${SUPABASE_URL}/rest/v1/group_members?id=eq.${encodeURIComponent(newCaptainId)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        role: 'Road Captain',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    // 3. Update role member lama jadi Rider
+    await fetch(`${SUPABASE_URL}/rest/v1/group_members?id=eq.${encodeURIComponent(oldCaptainId)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        role: 'Rider',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    return true;
+  } catch (e) {
+    console.error('transferCaptainInDb error:', e);
+    return false;
+  }
+}
+
+
 
 

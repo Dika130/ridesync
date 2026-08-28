@@ -17,7 +17,9 @@ import {
   Radio,
   Zap,
   Leaf,
-  Eye
+  Eye,
+  Users,
+  ChevronDown
 } from 'lucide-react';
 
 interface MultiplayerConvoyMapProps {
@@ -46,6 +48,9 @@ export default function MultiplayerConvoyMap({
   const memberMarkersRef = useRef<Map<string, any>>(new Map());
   const checkpointMarkerRef = useRef<any>(null);
   const routePolylineRef = useRef<any>(null);
+
+  // Dropdown Rider Selector State
+  const [isRiderDropdownOpen, setIsRiderDropdownOpen] = useState(false);
 
   // Selected Rider to view navigation route
   const activeFocusMemberId = focusedMemberId || currentMemberId;
@@ -231,7 +236,7 @@ export default function MultiplayerConvoyMap({
           <div style="font-weight: 900; color: ${isMe ? '#059669' : '#0284c7'}; font-size: 14px;">
             ${isMe ? '👑 (Anda) ' : '🏍️ '}${member.name}
           </div>
-          <div style="font-size: 11px; color: #0f766e; margin-bottom: 4px;">${member.motorcycle_model || 'Motor'} • ${member.role}</div>
+          <div style="font-size: 11px; color: #0f766e; margin-bottom: 4px;">Kendaraan: <b>${member.motorcycle_model || 'Motor'}</b></div>
           <div style="font-size: 12px; margin-bottom: 2px;">⚡ Kecepatan: <b>${member.speed ? Math.round(member.speed) + ' km/h' : '0 km/h'}</b></div>
           <div style="font-size: 12px; margin-bottom: 2px;">🔋 Baterai HP: <b>${member.battery_level ?? '-'}%</b></div>
           <div style="font-size: 11px; color: #475569; margin-top: 6px; border-top: 1px solid #e2e8f0; padding-top: 4px;">
@@ -241,7 +246,7 @@ export default function MultiplayerConvoyMap({
       `);
     });
 
-    // 3. Render Garis Jalur Tercepat Jalan Raya (OSRM Real Route Polyline)
+    // 3. Render Garis Jalur Tercepat Jalan Raya (OSRM / Valhalla Polyline)
     if (routeInfo && routeInfo.coordinates && routeInfo.coordinates.length > 0) {
       const routeColor = vehicleMode === 'motor' ? '#10b981' : '#06b6d4';
       
@@ -271,6 +276,16 @@ export default function MultiplayerConvoyMap({
     }
   };
 
+  const handleSelectRider = (member: GroupMember) => {
+    setIsRiderDropdownOpen(false);
+    if (onSelectMember) onSelectMember(member.id);
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([member.latitude, member.longitude], 16, { animate: true });
+      const marker = memberMarkersRef.current.get(member.id);
+      if (marker) marker.openPopup();
+    }
+  };
+
   const handleCenterCheckpoint = () => {
     if (mapInstanceRef.current && checkpoint) {
       mapInstanceRef.current.setView([checkpoint.latitude, checkpoint.longitude], 16, { animate: true });
@@ -295,13 +310,14 @@ export default function MultiplayerConvoyMap({
   };
 
   const isShowingMyRoute = activeFocusMember?.id === currentMemberId;
+  const otherMembers = members.filter((m) => m.id !== currentMemberId);
 
   return (
     <div className="relative w-full h-full min-h-[500px] lg:min-h-[660px] bg-[#020604] rounded-3xl overflow-hidden border border-emerald-900/60 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
       <div ref={mapContainerRef} className="w-full h-full" />
 
       {/* Floating Toolbar Navigasi di Kanan Atas */}
-      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[500] flex flex-col gap-2 items-end">
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[400] flex flex-col gap-2 items-end">
         {/* Toggle Mode Jalur Motor vs Mobil */}
         <div className="flex bg-[#040c08]/95 backdrop-blur-xl border border-emerald-900/80 p-1 rounded-2xl shadow-xl">
           <button
@@ -327,6 +343,47 @@ export default function MultiplayerConvoyMap({
             <span>Mobil</span>
           </button>
         </div>
+
+        {/* Tombol Pantau Rider Lain (Dropdown Selector) */}
+        {otherMembers.length > 0 && (
+          <div className="relative">
+            <button
+              onClick={() => setIsRiderDropdownOpen(!isRiderDropdownOpen)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#040c08]/95 backdrop-blur-xl border border-emerald-500/50 text-emerald-300 hover:text-white hover:bg-emerald-800 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95 cursor-pointer font-mono"
+            >
+              <Users className="w-4 h-4 text-emerald-400" />
+              <span>Pantau Rider ({otherMembers.length})</span>
+              <ChevronDown className="w-3 h-3 text-emerald-400" />
+            </button>
+
+            {isRiderDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-[#040d09] border border-emerald-500/40 rounded-2xl shadow-2xl p-2 z-[500] space-y-1 backdrop-blur-2xl">
+                <div className="text-[10px] text-emerald-400/70 font-mono px-2 py-1 uppercase font-bold border-b border-emerald-950">
+                  Pilih Rider untuk Dilihat:
+                </div>
+                {otherMembers.map((member) => (
+                  <button
+                    key={member.id}
+                    onClick={() => handleSelectRider(member)}
+                    className={`w-full text-left p-2 rounded-xl text-xs transition flex items-center justify-between cursor-pointer ${
+                      activeFocusMemberId === member.id
+                        ? 'bg-emerald-500/20 text-white font-bold border border-emerald-500/40'
+                        : 'text-emerald-200 hover:bg-emerald-950/80'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-semibold">{member.name}</div>
+                      <div className="text-[10px] text-emerald-400/60 truncate font-mono">
+                        {member.motorcycle_model || 'Motor'}
+                      </div>
+                    </div>
+                    <Eye className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-2" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {checkpoint && (
           <button
@@ -359,7 +416,7 @@ export default function MultiplayerConvoyMap({
       </div>
 
       {/* Info Route & ETA Banner di Kiri Atas */}
-      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-[500] flex flex-col gap-2 max-w-[250px] sm:max-w-[310px]">
+      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-[400] flex flex-col gap-2 max-w-[250px] sm:max-w-[310px]">
         {routeInfo && routeInfo.distanceFormatted ? (
           <div className="bg-[#030906]/95 backdrop-blur-2xl border border-emerald-500/40 p-3 sm:p-3.5 rounded-2xl shadow-[0_4px_25px_rgba(0,0,0,0.8)] space-y-2 animate-in fade-in">
             {/* Header Title */}
@@ -402,9 +459,9 @@ export default function MultiplayerConvoyMap({
             {!isShowingMyRoute && (
               <button
                 onClick={handleCenterMe}
-                className="w-full py-1 px-2 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/50 text-emerald-300 rounded-lg text-[10px] font-bold font-mono transition flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-1.5 px-2 bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-300 rounded-xl text-[10px] font-bold font-mono transition flex items-center justify-center gap-1.5 cursor-pointer shadow"
               >
-                <span>Kembali ke Rute Anda</span>
+                <span>Kembali ke Posisi Anda</span>
               </button>
             )}
           </div>
@@ -422,7 +479,7 @@ export default function MultiplayerConvoyMap({
       </div>
 
       {/* Legend Marker di Kiri Bawah - Rapi & Bersih */}
-      <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-[500] bg-[#030906]/95 backdrop-blur-xl border border-emerald-900/80 text-xs px-3 py-2 rounded-2xl text-emerald-300 flex items-center gap-3 sm:gap-4 shadow-xl font-mono">
+      <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 z-[400] bg-[#030906]/95 backdrop-blur-xl border border-emerald-900/80 text-xs px-3 py-2 rounded-2xl text-emerald-300 flex items-center gap-3 sm:gap-4 shadow-xl font-mono">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 border border-white" />
           <span className="text-[10px] sm:text-[11px] font-bold text-emerald-200">Anda</span>
