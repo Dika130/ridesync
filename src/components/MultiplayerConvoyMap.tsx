@@ -172,6 +172,15 @@ export default function MultiplayerConvoyMap({
     }
 
     // 2. Render SEMUA Anggota Konvoi (Multiplayer Riders)
+    // Bersihkan marker anggota yang sudah keluar dari grup
+    const activeMemberIds = new Set(members.map((m) => m.id));
+    memberMarkersRef.current.forEach((marker, id) => {
+      if (!activeMemberIds.has(id)) {
+        map.removeLayer(marker);
+        memberMarkersRef.current.delete(id);
+      }
+    });
+
     members.forEach((member) => {
       const isMe = member.id === currentMemberId;
       const isFocused = member.id === selectedFocusMemberId;

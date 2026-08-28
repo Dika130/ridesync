@@ -28,7 +28,9 @@ import {
   MapPin,
   Clock,
   ShieldAlert,
-  Lock
+  Lock,
+  LogOut,
+  AlertTriangle
 } from 'lucide-react';
 
 const MultiplayerConvoyMap = dynamic(() => import('@/components/MultiplayerConvoyMap'), {
@@ -77,6 +79,10 @@ export default function ConvoyRoomPage() {
 
   // Checkpoint Modal
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
+
+  // Leave Group Modal
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [leaveLoading, setLeaveLoading] = useState(false);
 
   // Share link state
   const [copied, setCopied] = useState(false);
@@ -227,7 +233,6 @@ export default function ConvoyRoomPage() {
 
     setJoinLoading(true);
 
-    // Ambil posisi GPS HP saat ini
     const doJoin = async (lat?: number, lng?: number) => {
       try {
         const res = await fetch(`/api/groups/${groupCode}/join`, {
@@ -272,6 +277,36 @@ export default function ConvoyRoomPage() {
       );
     } else {
       doJoin();
+    }
+  };
+
+  // Handle Leave Group & Delete Member
+  const handleConfirmLeave = async () => {
+    setLeaveLoading(true);
+    try {
+      if (myMemberId && groupCode) {
+        // Hentikan watcher GPS
+        if (watchIdRef.current !== null && typeof navigator !== 'undefined') {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+        }
+
+        // Kirim API leave group
+        await fetch(`/api/groups/${groupCode}/leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ memberId: myMemberId })
+        });
+
+        // Hapus session lokal
+        localStorage.removeItem(`ridesync_member_${groupCode}`);
+        localStorage.removeItem(`ridesync_group_cache_${groupCode}`);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLeaveLoading(false);
+      setIsLeaveModalOpen(false);
+      router.push('/');
     }
   };
 
@@ -457,11 +492,12 @@ export default function ConvoyRoomPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/')}
-              title="Kembali ke Beranda"
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition"
+              onClick={() => setIsLeaveModalOpen(true)}
+              title="Keluar dari Grup Konvoi"
+              className="flex items-center gap-1.5 py-2 px-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition shadow"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Keluar Grup</span>
             </button>
 
             <div>
@@ -632,6 +668,48 @@ export default function ConvoyRoomPage() {
           onSave={handleSaveCheckpoint}
           userCurrentLocation={myMember ? { latitude: myMember.latitude, longitude: myMember.longitude } : undefined}
         />
+      )}
+
+      {/* Modal Konfirmasi Keluar dari Grup */}
+      {isLeaveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="max-w-sm w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 className="text-base font-black text-white">Keluar dari Konvoi?</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Posisi motor Anda akan dihapus dari peta rombongan dan pelacakan GPS akan dihentikan.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setIsLeaveModalOpen(false)}
+                disabled={leaveLoading}
+                className="flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmLeave}
+                disabled={leaveLoading}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-red-950"
+              >
+                {leaveLoading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Ya, Keluar</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

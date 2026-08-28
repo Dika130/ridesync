@@ -168,3 +168,19 @@ export async function updateGroupCheckpointInDb(
     return false;
   }
 }
+
+// 6. Hapus Rider dari Grup (Saat Keluar dari Grup)
+export async function deleteMemberFromDb(memberId: string) {
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/group_members?id=eq.${encodeURIComponent(memberId)}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers
+    });
+    return res.ok;
+  } catch (e) {
+    console.error('deleteMemberFromDb error:', e);
+    return false;
+  }
+}
+
