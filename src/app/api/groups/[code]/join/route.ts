@@ -10,9 +10,12 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { name, motorcycleModel, licensePlate, avatarUrl, role } = body;
+    const { name, motorcycleModel, licensePlate, avatarUrl, role, latitude, longitude } = body;
 
     const memberId = 'mbr-' + Date.now();
+
+    const lat = typeof latitude === 'number' && !isNaN(latitude) ? latitude : -6.2088;
+    const lng = typeof longitude === 'number' && !isNaN(longitude) ? longitude : 106.8456;
 
     const newMember: GroupMember = {
       id: memberId,
@@ -22,8 +25,8 @@ export async function POST(
       license_plate: licensePlate || undefined,
       avatar_url: avatarUrl || '',
       role: role || 'Anggota Konvoi',
-      latitude: -6.7025,
-      longitude: 106.9942,
+      latitude: lat,
+      longitude: lng,
       accuracy: 10,
       speed: 0,
       battery_level: 100,

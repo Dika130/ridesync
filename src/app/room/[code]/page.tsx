@@ -118,12 +118,10 @@ export default function ConvoyRoomPage() {
           const data = await res.json();
           setGroup(data);
           setError(null);
-          // Simpan ke cache lokal agar tidak pernah hilang
           if (typeof window !== 'undefined') {
             localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data));
           }
         } else {
-          // AUTO-RECOVERY: Jika server mereset / cold start, pulihkan dari cache lokal!
           if (typeof window !== 'undefined') {
             const cached = localStorage.getItem(`ridesync_group_cache_${groupCode}`);
             if (cached) {
@@ -131,17 +129,6 @@ export default function ConvoyRoomPage() {
                 const parsedGroup = JSON.parse(cached);
                 setGroup(parsedGroup);
                 setError(null);
-
-                // Sync balik ke server
-                fetch('/api/groups', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    name: parsedGroup.name,
-                    creatorName: parsedGroup.created_by,
-                    checkpoint: parsedGroup.checkpoint
-                  })
-                }).catch(() => {});
                 return;
               } catch (e) {}
             }
@@ -208,7 +195,12 @@ export default function ConvoyRoomPage() {
       } catch (e) {}
     };
 
-    navigator.geolocation.getCurrentPosition(onLocationSuccess, () => {}, {
+    navigator.geolocation.getCurrentPosition(onLocationSuccess, () => {
+      navigator.geolocation.getCurrentPosition(onLocationSuccess, () => {}, {
+        enableHighAccuracy: false,
+        timeout: 20000
+      });
+    }, {
       enableHighAccuracy: true,
       timeout: 10000
     });
@@ -228,38 +220,58 @@ export default function ConvoyRoomPage() {
     };
   }, [myMemberId, groupCode, batteryPct, isCharging]);
 
-  // Handle Join Form
+  // Handle Join Form with Real Position
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinName) return;
 
     setJoinLoading(true);
-    try {
-      const res = await fetch(`/api/groups/${groupCode}/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: joinName,
-          motorcycleModel: joinMotor || 'Motor Standar',
-          role: joinRole
-        })
-      });
 
-      if (res.ok) {
-        const data = await res.json();
-        setMyMemberId(data.memberId);
-        localStorage.setItem(`ridesync_member_${groupCode}`, data.memberId);
-        if (data.group) {
-          setGroup(data.group);
-          localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data.group));
+    // Ambil posisi GPS HP saat ini
+    const doJoin = async (lat?: number, lng?: number) => {
+      try {
+        const res = await fetch(`/api/groups/${groupCode}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: joinName,
+            motorcycleModel: joinMotor || 'Motor Standar',
+            role: joinRole,
+            latitude: lat,
+            longitude: lng
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setMyMemberId(data.memberId);
+          localStorage.setItem(`ridesync_member_${groupCode}`, data.memberId);
+          if (data.group) {
+            setGroup(data.group);
+            localStorage.setItem(`ridesync_group_cache_${groupCode}`, JSON.stringify(data.group));
+          }
+        } else {
+          alert('Gagal bergabung ke grup konvoi.');
         }
-      } else {
-        alert('Gagal bergabung ke grup konvoi.');
+      } catch (e) {
+        alert('Terjadi kesalahan jaringan.');
+      } finally {
+        setJoinLoading(false);
       }
-    } catch (e) {
-      alert('Terjadi kesalahan jaringan.');
-    } finally {
-      setJoinLoading(false);
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          doJoin(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          doJoin();
+        },
+        { enableHighAccuracy: false, timeout: 5000 }
+      );
+    } else {
+      doJoin();
     }
   };
 
@@ -552,7 +564,7 @@ export default function ConvoyRoomPage() {
                     className={`p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 ${
                       isMe
                         ? 'bg-emerald-950/40 border-emerald-500/60 shadow-md shadow-emerald-950/40'
-                        : 'bg-slate-950/60 border-slate-800/80'
+                        : 'bg-slate-950/60 border-slate-800/80 hover:border-cyan-500/40'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
