@@ -309,17 +309,27 @@ export default function ConvoyRoomPage() {
     }
   };
 
+  // Generate Direct Public URL (Without Vercel Auth requirement)
+  const getPublicShareUrl = () => {
+    if (typeof window === 'undefined') return '';
+    if (window.location.hostname === 'localhost') {
+      return `${window.location.origin}/room/${groupCode}`;
+    }
+    // Always share official public production domain
+    return `https://ridesync-web.vercel.app/room/${groupCode}`;
+  };
+
   const handleCopyGroupLink = () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const url = getPublicShareUrl();
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
   const handleShareWhatsApp = () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const url = getPublicShareUrl();
     const text = encodeURIComponent(
-      `🏍️ Yuk gabung ke Konvoi "${group?.name || 'Touring'}" di RideSync!\nBuka link ini untuk memantau & berbagi posisi motor real-time:\n${url}`
+      `🏍️ Yuk gabung ke Konvoi "${group?.name || 'Touring'}" di RideSync!\nBuka link ini untuk pantau & berbagi posisi motor real-time (Langsung tanpa login):\n${url}`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
@@ -488,8 +498,8 @@ export default function ConvoyRoomPage() {
   // ==============================================================================
   return (
     <div className="min-h-screen bg-[#030705] flex flex-col font-sans text-emerald-50 selection:bg-emerald-400 selection:text-black">
-      {/* Top Navbar Header */}
-      <header className="border-b border-emerald-950/80 bg-[#040806]/90 backdrop-blur-2xl sticky top-0 z-40 shadow-xl">
+      {/* Top Navbar Header - Fully Sticky */}
+      <header className="sticky top-0 z-50 w-full border-b border-emerald-950/80 bg-[#040806]/95 backdrop-blur-2xl shadow-2xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button

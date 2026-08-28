@@ -62,7 +62,6 @@ export default function HomePage() {
 
       if (res.ok) {
         const data = await res.json();
-        // Simpan sesi creator ke localStorage
         localStorage.setItem(`ridesync_member_${data.group.code}`, data.currentMemberId);
         localStorage.setItem(`ridesync_group_cache_${data.group.code}`, JSON.stringify(data.group));
         router.push(`/room/${data.group.code}`);
@@ -87,18 +86,18 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#030705] text-emerald-50 selection:bg-emerald-400 selection:text-black flex flex-col font-sans relative overflow-hidden">
-      {/* Eco-Futuristic Glow Ambient Orbs */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-emerald-500/10 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-0 right-10 w-[500px] h-[300px] bg-teal-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute top-1/3 left-0 w-[400px] h-[300px] bg-cyan-500/5 rounded-full blur-[100px] pointer-events-none" />
+    <div className="min-h-screen bg-[#030705] text-emerald-50 selection:bg-emerald-400 selection:text-black flex flex-col font-sans relative">
+      {/* Background Decorators with isolated overflow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-emerald-500/10 rounded-full blur-[140px]" />
+        <div className="absolute bottom-0 right-10 w-[500px] h-[300px] bg-teal-500/10 rounded-full blur-[120px]" />
+        <div className="absolute top-1/3 left-0 w-[400px] h-[300px] bg-cyan-500/5 rounded-full blur-[100px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#064e3b10_1px,transparent_1px),linear-gradient(to_bottom,#064e3b10_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+      </div>
 
-      {/* Grid Pattern Overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#064e3b10_1px,transparent_1px),linear-gradient(to_bottom,#064e3b10_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none" />
-
-      {/* Top Header Navbar */}
-      <header className="border-b border-emerald-950/80 bg-[#040806]/80 backdrop-blur-2xl sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+      {/* Fully Sticky Topbar */}
+      <header className="sticky top-0 z-50 w-full border-b border-emerald-950/80 bg-[#040806]/95 backdrop-blur-2xl shadow-xl">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-400 p-[1.5px] shadow-[0_0_20px_rgba(16,185,129,0.3)]">
               <div className="w-full h-full bg-[#040d09] rounded-[14px] flex items-center justify-center">
@@ -152,7 +151,7 @@ export default function HomePage() {
         <div className="w-full max-w-md bg-[#06100c]/90 p-1.5 rounded-2xl border border-emerald-900/60 flex shadow-2xl mb-6 backdrop-blur-xl">
           <button
             onClick={() => setActiveTab('create')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'create'
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-black shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                 : 'text-emerald-400/60 hover:text-emerald-300'
@@ -163,7 +162,7 @@ export default function HomePage() {
           </button>
           <button
             onClick={() => setActiveTab('join')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'join'
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-black shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                 : 'text-emerald-400/60 hover:text-emerald-300'
