@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GroupMember } from '@/lib/types';
-import { supabase } from '@/lib/supabase';
+import { upsertMemberToDb, getGroupByCodeFromDb } from '@/lib/supabaseRest';
 
 export async function POST(
   request: NextRequest,
@@ -33,34 +33,19 @@ export async function POST(
       is_active: true
     };
 
-    if (supabase) {
-      try {
-        await supabase.from('group_members').upsert({
-          id: memberId,
-          group_code: code,
-          name: newMember.name,
-          motorcycle_model: newMember.motorcycle_model,
-          license_plate: newMember.license_plate,
-          avatar_url: newMember.avatar_url,
-          role: newMember.role,
-          latitude: newMember.latitude,
-          longitude: newMember.longitude,
-          accuracy: newMember.accuracy,
-          speed: 0,
-          battery_level: 100,
-          is_active: true,
-          updated_at: new Date().toISOString()
-        });
-      } catch (e) {}
-    }
+    // 1. Simpan ke Supabase via REST
+    await upsertMemberToDb(newMember);
 
+    // 2. Simpan ke memory
     if (globalThis.globalConvoyGroups && globalThis.globalConvoyGroups.has(code)) {
       const group = globalThis.globalConvoyGroups.get(code)!;
       group.members = group.members.filter((m) => m.name.toLowerCase() !== name?.toLowerCase());
       group.members.push(newMember);
     }
 
-    return NextResponse.json({ success: true, memberId });
+    const updatedGroup = await getGroupByCodeFromDb(code);
+
+    return NextResponse.json({ success: true, memberId, group: updatedGroup });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

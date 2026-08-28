@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { updateGroupCheckpointInDb, getGroupByCodeFromDb } from '@/lib/supabaseRest';
 
 export async function POST(
   request: NextRequest,
@@ -11,11 +11,11 @@ export async function POST(
     const body = await request.json();
     const { name, latitude, longitude, description, memberId } = body;
 
-    const group = globalThis.globalConvoyGroups ? globalThis.globalConvoyGroups.get(code) : null;
-    const member = group?.members.find((m) => m.id === memberId);
+    const currentGroup = await getGroupByCodeFromDb(code);
+    const member = currentGroup?.members?.find((m: any) => m.id === memberId);
 
     // Validasi: Hanya Road Captain / Pembuat Grup yang boleh mengubah titik tujuan
-    if (member && member.role !== 'Road Captain' && member.name !== group?.created_by) {
+    if (member && member.role !== 'Road Captain' && member.name !== currentGroup?.created_by) {
       return NextResponse.json(
         { error: 'Hanya Road Captain / Pembuat Grup yang berhak mengatur titik tujuan.' },
         { status: 403 }
@@ -25,21 +25,15 @@ export async function POST(
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
 
-    if (supabase) {
-      try {
-        await supabase
-          .from('groups')
-          .update({
-            checkpoint_name: name || 'Titik Kumpul',
-            checkpoint_lat: lat,
-            checkpoint_lng: lng,
-            checkpoint_desc: description || '',
-            updated_at: new Date().toISOString()
-          })
-          .eq('code', code);
-      } catch (e) {}
-    }
+    // 1. Simpan ke Supabase via REST
+    await updateGroupCheckpointInDb(code, {
+      name: name || 'Titik Kumpul',
+      latitude: lat,
+      longitude: lng,
+      description: description || ''
+    });
 
+    // 2. Simpan ke memory
     if (globalThis.globalConvoyGroups && globalThis.globalConvoyGroups.has(code)) {
       const g = globalThis.globalConvoyGroups.get(code)!;
       g.checkpoint = {

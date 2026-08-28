@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { updateMemberLocationInDb } from '@/lib/supabaseRest';
 
 export async function POST(
   request: NextRequest,
@@ -11,26 +11,20 @@ export async function POST(
     const body = await request.json();
     const { memberId, latitude, longitude, accuracy, speed, heading, battery_level, is_charging, address, is_active } = body;
 
-    if (supabase) {
-      try {
-        await supabase
-          .from('group_members')
-          .update({
-            latitude,
-            longitude,
-            accuracy: accuracy ?? 10,
-            speed: speed ?? 0,
-            heading: heading ?? null,
-            battery_level: battery_level ?? null,
-            is_charging: is_charging ?? false,
-            address: address ?? null,
-            is_active: is_active ?? true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', memberId);
-      } catch (e) {}
-    }
+    // 1. Simpan ke Supabase via REST
+    await updateMemberLocationInDb(memberId, {
+      latitude,
+      longitude,
+      accuracy: accuracy ?? 10,
+      speed: speed ?? 0,
+      heading: heading ?? undefined,
+      battery_level: battery_level ?? undefined,
+      is_charging: is_charging ?? false,
+      address: address ?? undefined,
+      is_active: is_active ?? true
+    });
 
+    // 2. Simpan ke memory
     if (globalThis.globalConvoyGroups && globalThis.globalConvoyGroups.has(code)) {
       const group = globalThis.globalConvoyGroups.get(code)!;
       const member = group.members.find((m) => m.id === memberId);

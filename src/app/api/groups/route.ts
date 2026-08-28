@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ConvoyGroup } from '@/lib/types';
-import { supabase } from '@/lib/supabase';
+import { insertGroupToDb, upsertMemberToDb } from '@/lib/supabaseRest';
 
 declare global {
   var globalConvoyGroups: Map<string, ConvoyGroup>;
@@ -8,36 +8,6 @@ declare global {
 
 if (!globalThis.globalConvoyGroups) {
   globalThis.globalConvoyGroups = new Map<string, ConvoyGroup>();
-}
-
-export async function GET() {
-  if (supabase) {
-    try {
-      const { data: gData, error: gErr } = await supabase.from('groups').select('*');
-      const { data: mData, error: mErr } = await supabase.from('group_members').select('*');
-
-      if (!gErr && gData) {
-        const fullGroups: ConvoyGroup[] = gData.map((g: any) => ({
-          id: g.id,
-          code: g.code,
-          name: g.name,
-          created_by: g.created_by,
-          created_at: g.created_at,
-          checkpoint: g.checkpoint_lat && g.checkpoint_lng ? {
-            name: g.checkpoint_name || 'Titik Kumpul',
-            latitude: g.checkpoint_lat,
-            longitude: g.checkpoint_lng,
-            description: g.checkpoint_desc || ''
-          } : null,
-          members: (mData || []).filter((m: any) => m.group_code === g.code)
-        }));
-        return NextResponse.json(fullGroups);
-      }
-    } catch (e) {}
-  }
-
-  const groups = Array.from(globalThis.globalConvoyGroups.values());
-  return NextResponse.json(groups);
 }
 
 export async function POST(req: NextRequest) {
@@ -58,7 +28,7 @@ export async function POST(req: NextRequest) {
       name: creatorName || 'Road Captain',
       motorcycle_model: motorcycleModel || 'Motor Standar',
       avatar_url: avatarUrl || '',
-      role: role || 'Road Captain',
+      role: (role || 'Road Captain') as any,
       latitude: checkpoint?.latitude || -6.7025,
       longitude: checkpoint?.longitude || 106.9942,
       accuracy: 10,
@@ -85,35 +55,20 @@ export async function POST(req: NextRequest) {
       members: [creatorMember]
     };
 
-    // Simpan ke Supabase jika tersedia
-    if (supabase) {
-      try {
-        await supabase.from('groups').insert({
-          code,
-          name: newGroup.name,
-          created_by: newGroup.created_by,
-          checkpoint_name: newGroup.checkpoint?.name,
-          checkpoint_lat: newGroup.checkpoint?.latitude,
-          checkpoint_lng: newGroup.checkpoint?.longitude,
-          checkpoint_desc: newGroup.checkpoint?.description
-        });
+    // 1. Simpan ke Supabase via REST API
+    await insertGroupToDb({
+      code,
+      name: newGroup.name,
+      created_by: newGroup.created_by,
+      checkpoint_name: newGroup.checkpoint?.name,
+      checkpoint_lat: newGroup.checkpoint?.latitude,
+      checkpoint_lng: newGroup.checkpoint?.longitude,
+      checkpoint_desc: newGroup.checkpoint?.description
+    });
 
-        await supabase.from('group_members').insert({
-          id: creatorMember.id,
-          group_code: code,
-          name: creatorMember.name,
-          motorcycle_model: creatorMember.motorcycle_model,
-          role: creatorMember.role,
-          latitude: creatorMember.latitude,
-          longitude: creatorMember.longitude,
-          accuracy: creatorMember.accuracy,
-          speed: 0,
-          battery_level: 100,
-          is_active: true
-        });
-      } catch (e) {}
-    }
+    await upsertMemberToDb(creatorMember);
 
+    // 2. Simpan ke memory
     globalThis.globalConvoyGroups.set(code, newGroup);
 
     return NextResponse.json({
