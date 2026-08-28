@@ -10,63 +10,32 @@ if (!globalThis.globalConvoyGroups) {
   globalThis.globalConvoyGroups = new Map<string, ConvoyGroup>();
 }
 
-// Demo Group Awal
-const DEMO_CODE = 'SUNMORI-99';
-if (!globalThis.globalConvoyGroups.has(DEMO_CODE)) {
-  globalThis.globalConvoyGroups.set(DEMO_CODE, {
-    id: 'grp-demo-01',
-    code: DEMO_CODE,
-    name: 'Touring Puncak Sunmori',
-    created_by: 'Road Captain (Dika)',
-    created_at: new Date().toISOString(),
-    checkpoint: {
-      name: 'Puncak Pass Rest Area',
-      latitude: -6.7025,
-      longitude: 106.9942,
-      description: 'Titik kumpul istirahat & regrouping'
-    },
-    members: [
-      {
-        id: 'mbr-cap-01',
-        group_code: DEMO_CODE,
-        name: 'Dika (Captain)',
-        motorcycle_model: 'Kawasaki ZX25R',
-        license_plate: 'B 2500 RAC',
-        avatar_url: 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=150&auto=format&fit=crop&q=80',
-        role: 'Road Captain',
-        latitude: -6.7150,
-        longitude: 106.9800,
-        accuracy: 5,
-        speed: 60,
-        battery_level: 92,
-        is_charging: false,
-        address: 'Jl. Raya Puncak, Cisarua',
-        updated_at: new Date().toISOString(),
-        is_active: true
-      },
-      {
-        id: 'mbr-rdr-02',
-        group_code: DEMO_CODE,
-        name: 'Budi (Sweeper)',
-        motorcycle_model: 'Yamaha NMAX 155',
-        license_plate: 'B 1555 NMX',
-        avatar_url: '',
-        role: 'Sweeper',
-        latitude: -6.7220,
-        longitude: 106.9720,
-        accuracy: 8,
-        speed: 55,
-        battery_level: 78,
-        is_charging: false,
-        address: 'Jl. Raya Puncak KM 80',
-        updated_at: new Date().toISOString(),
-        is_active: true
-      }
-    ]
-  });
-}
-
 export async function GET() {
+  if (supabase) {
+    try {
+      const { data: gData, error: gErr } = await supabase.from('groups').select('*');
+      const { data: mData, error: mErr } = await supabase.from('group_members').select('*');
+
+      if (!gErr && gData) {
+        const fullGroups: ConvoyGroup[] = gData.map((g: any) => ({
+          id: g.id,
+          code: g.code,
+          name: g.name,
+          created_by: g.created_by,
+          created_at: g.created_at,
+          checkpoint: g.checkpoint_lat && g.checkpoint_lng ? {
+            name: g.checkpoint_name || 'Titik Kumpul',
+            latitude: g.checkpoint_lat,
+            longitude: g.checkpoint_lng,
+            description: g.checkpoint_desc || ''
+          } : null,
+          members: (mData || []).filter((m: any) => m.group_code === g.code)
+        }));
+        return NextResponse.json(fullGroups);
+      }
+    } catch (e) {}
+  }
+
   const groups = Array.from(globalThis.globalConvoyGroups.values());
   return NextResponse.json(groups);
 }
@@ -76,7 +45,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, creatorName, motorcycleModel, avatarUrl, role, checkpoint } = body;
 
-    // Generate readable code (e.g. TOURING-4829)
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const prefix = name
       ? name.trim().split(' ')[0].replace(/[^A-Za-z0-9]/g, '').toUpperCase().substring(0, 7) || 'CONVOY'
@@ -91,8 +59,8 @@ export async function POST(req: NextRequest) {
       motorcycle_model: motorcycleModel || 'Motor Standar',
       avatar_url: avatarUrl || '',
       role: role || 'Road Captain',
-      latitude: -6.7025,
-      longitude: 106.9942,
+      latitude: checkpoint?.latitude || -6.7025,
+      longitude: checkpoint?.longitude || 106.9942,
       accuracy: 10,
       speed: 0,
       battery_level: 100,
@@ -116,6 +84,35 @@ export async function POST(req: NextRequest) {
       },
       members: [creatorMember]
     };
+
+    // Simpan ke Supabase jika tersedia
+    if (supabase) {
+      try {
+        await supabase.from('groups').insert({
+          code,
+          name: newGroup.name,
+          created_by: newGroup.created_by,
+          checkpoint_name: newGroup.checkpoint?.name,
+          checkpoint_lat: newGroup.checkpoint?.latitude,
+          checkpoint_lng: newGroup.checkpoint?.longitude,
+          checkpoint_desc: newGroup.checkpoint?.description
+        });
+
+        await supabase.from('group_members').insert({
+          id: creatorMember.id,
+          group_code: code,
+          name: creatorMember.name,
+          motorcycle_model: creatorMember.motorcycle_model,
+          role: creatorMember.role,
+          latitude: creatorMember.latitude,
+          longitude: creatorMember.longitude,
+          accuracy: creatorMember.accuracy,
+          speed: 0,
+          battery_level: 100,
+          is_active: true
+        });
+      } catch (e) {}
+    }
 
     globalThis.globalConvoyGroups.set(code, newGroup);
 

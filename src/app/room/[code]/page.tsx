@@ -7,6 +7,7 @@ import { ConvoyGroup, GroupMember, Checkpoint } from '@/lib/types';
 import CheckpointModal from '@/components/CheckpointModal';
 import {
   Bike,
+  Car,
   Flag,
   Share2,
   Copy,
@@ -24,7 +25,8 @@ import {
   Radio,
   Play,
   StopCircle,
-  MapPin
+  MapPin,
+  Clock
 } from 'lucide-react';
 
 const MultiplayerConvoyMap = dynamic(() => import('@/components/MultiplayerConvoyMap'), {
@@ -60,6 +62,9 @@ export default function ConvoyRoomPage() {
   const [group, setGroup] = useState<ConvoyGroup | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Vehicle Routing Mode: Motor vs Mobil
+  const [vehicleMode, setVehicleMode] = useState<'motor' | 'mobil'>('motor');
 
   // My Member Identity in this room
   const [myMemberId, setMyMemberId] = useState<string | null>(null);
@@ -205,7 +210,7 @@ export default function ConvoyRoomPage() {
         const data = await res.json();
         setMyMemberId(data.memberId);
         localStorage.setItem(`ridesync_member_${groupCode}`, data.memberId);
-        setGroup(data.group);
+        if (data.group) setGroup(data.group);
       } else {
         alert('Gagal bergabung ke grup konvoi.');
       }
@@ -328,10 +333,10 @@ export default function ConvoyRoomPage() {
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Model Motor</label>
+              <label className="block text-slate-300 font-semibold mb-1">Model Kendaraan</label>
               <input
                 type="text"
-                placeholder="Contoh: Honda CBR250RR / Yamaha NMAX"
+                placeholder="Contoh: Honda CBR250RR / Yamaha NMAX / Mobil Avanza"
                 value={joinMotor}
                 onChange={(e) => setJoinMotor(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
@@ -405,7 +410,7 @@ export default function ConvoyRoomPage() {
             </div>
           </div>
 
-          {/* Action Buttons: Set Checkpoint & Share */}
+          {/* Action Buttons: Mode, Checkpoint, Share */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsCheckpointModalOpen(true)}
@@ -528,6 +533,8 @@ export default function ConvoyRoomPage() {
               members={group.members}
               currentMemberId={myMemberId}
               checkpoint={group.checkpoint}
+              vehicleMode={vehicleMode}
+              onToggleVehicleMode={setVehicleMode}
             />
           </div>
         </section>

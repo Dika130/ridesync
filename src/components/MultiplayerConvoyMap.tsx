@@ -2,32 +2,34 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { GroupMember, Checkpoint } from '@/lib/types';
-import { Flag, Crosshair, Maximize2, Bike, Compass, Ruler, Radio } from 'lucide-react';
+import {
+  Flag,
+  Crosshair,
+  Maximize2,
+  Bike,
+  Car,
+  Compass,
+  Ruler,
+  Clock,
+  Navigation2,
+  Layers,
+  Sparkles
+} from 'lucide-react';
 
 interface MultiplayerConvoyMapProps {
   members: GroupMember[];
   currentMemberId?: string;
   checkpoint?: Checkpoint | null;
-}
-
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  vehicleMode: 'motor' | 'mobil';
+  onToggleVehicleMode: (mode: 'motor' | 'mobil') => void;
 }
 
 export default function MultiplayerConvoyMap({
   members = [],
   currentMemberId,
   checkpoint,
+  vehicleMode,
+  onToggleVehicleMode,
 }: MultiplayerConvoyMapProps) {
   const [mounted, setMounted] = useState(false);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -35,7 +37,15 @@ export default function MultiplayerConvoyMap({
 
   const memberMarkersRef = useRef<Map<string, any>>(new Map());
   const checkpointMarkerRef = useRef<any>(null);
-  const routeLinesRef = useRef<Map<string, any>>(new Map());
+  const routePolylineRef = useRef<any>(null);
+
+  // Routing Info State
+  const [routeInfo, setRouteInfo] = useState<{
+    distanceFormatted?: string;
+    durationFormatted?: string;
+    coordinates?: [number, number][];
+  } | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
 
   const currentMember = members.find((m) => m.id === currentMemberId) || members[0];
   const defaultLat = currentMember?.latitude ?? checkpoint?.latitude ?? -6.7025;
@@ -45,6 +55,39 @@ export default function MultiplayerConvoyMap({
     setMounted(true);
   }, []);
 
+  // Fetch OSRM Road Navigation Route when position or checkpoint or vehicleMode changes
+  useEffect(() => {
+    if (!currentMember || !checkpoint) return;
+    const destLat = checkpoint.latitude;
+    const destLng = checkpoint.longitude;
+    const fromLat = currentMember.latitude;
+    const fromLng = currentMember.longitude;
+
+    async function fetchRoute() {
+      setRouteLoading(true);
+      try {
+        const res = await fetch(
+          `/api/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${destLat}&toLng=${destLng}&vehicleMode=${vehicleMode}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setRouteInfo({
+            distanceFormatted: data.distanceFormatted,
+            durationFormatted: data.durationFormatted,
+            coordinates: data.coordinates
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setRouteLoading(false);
+      }
+    }
+
+    fetchRoute();
+  }, [currentMember?.latitude, currentMember?.longitude, checkpoint?.latitude, checkpoint?.longitude, vehicleMode]);
+
+  // Leaflet Map Render
   useEffect(() => {
     if (!mounted || typeof window === 'undefined') return;
 
@@ -167,26 +210,25 @@ export default function MultiplayerConvoyMap({
           </div>
         </div>
       `);
-
-      // Garis Jarak dari Rider ke Checkpoint
-      if (checkpoint) {
-        const lineKey = `line-${member.id}`;
-        const pts: [number, number][] = [latLng, [checkpoint.latitude, checkpoint.longitude]];
-        let line = routeLinesRef.current.get(lineKey);
-        if (!line) {
-          line = L.polyline(pts, {
-            color: isMe ? '#10b981' : '#06b6d4',
-            weight: isMe ? 3.5 : 2,
-            dashArray: '6, 6',
-            opacity: isMe ? 0.85 : 0.5,
-          }).addTo(map);
-          routeLinesRef.current.set(lineKey, line);
-        } else {
-          line.setLatLngs(pts);
-        }
-      }
     });
-  }, [mounted, members, currentMemberId, checkpoint, defaultLat, defaultLng]);
+
+    // 3. Render Garis Jalur Tercepat Jalan Raya (OSRM Real Route Polyline)
+    if (routeInfo && routeInfo.coordinates && routeInfo.coordinates.length > 0) {
+      const routeColor = vehicleMode === 'motor' ? '#06b6d4' : '#6366f1'; // Cyan untuk Motor, Indigo untuk Mobil
+      
+      if (!routePolylineRef.current) {
+        routePolylineRef.current = L.polyline(routeInfo.coordinates, {
+          color: routeColor,
+          weight: 5,
+          opacity: 0.85,
+          lineJoin: 'round',
+        }).addTo(map);
+      } else {
+        routePolylineRef.current.setLatLngs(routeInfo.coordinates);
+        routePolylineRef.current.setStyle({ color: routeColor });
+      }
+    }
+  }, [mounted, members, currentMemberId, checkpoint, routeInfo, vehicleMode, defaultLat, defaultLng]);
 
   const handleCenterMe = () => {
     const me = members.find((m) => m.id === currentMemberId);
@@ -225,6 +267,32 @@ export default function MultiplayerConvoyMap({
 
       {/* Floating Toolbar Navigasi di Kanan Atas */}
       <div className="absolute top-4 right-4 z-[500] flex flex-col gap-2">
+        {/* Toggle Mode Jalur Motor vs Mobil */}
+        <div className="flex bg-slate-900/95 backdrop-blur-xl border border-slate-700 p-1 rounded-2xl shadow-xl">
+          <button
+            onClick={() => onToggleVehicleMode('motor')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              vehicleMode === 'motor'
+                ? 'bg-cyan-500 text-slate-950 shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Bike className="w-3.5 h-3.5" />
+            <span>Motor</span>
+          </button>
+          <button
+            onClick={() => onToggleVehicleMode('mobil')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              vehicleMode === 'mobil'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Car className="w-3.5 h-3.5" />
+            <span>Mobil</span>
+          </button>
+        </div>
+
         {checkpoint && (
           <button
             onClick={handleCenterCheckpoint}
@@ -255,22 +323,41 @@ export default function MultiplayerConvoyMap({
         </button>
       </div>
 
-      {/* Info Badges di Kiri Atas */}
-      <div className="absolute top-4 left-4 z-[500] flex flex-col gap-2">
-        <div className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-950/90 backdrop-blur border border-slate-800 rounded-full shadow-lg">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
-          </span>
-          <span className="text-xs font-bold text-slate-200">
-            Multiplayer Convoy GPS Active
-          </span>
-        </div>
+      {/* Info Route & ETA Banner di Kiri Atas */}
+      <div className="absolute top-4 left-4 z-[500] flex flex-col gap-2 max-w-xs sm:max-w-sm">
+        {/* Banner Navigasi Rute Tercepat */}
+        {routeInfo && routeInfo.distanceFormatted ? (
+          <div className="bg-slate-950/95 backdrop-blur-xl border border-cyan-500/40 p-3 rounded-2xl shadow-2xl space-y-1.5 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-cyan-400">
+                <Navigation2 className="w-3.5 h-3.5 rotate-45" />
+                <span>Jalur Tercepat ({vehicleMode === 'motor' ? '🏍️ Motor' : '🚗 Mobil'})</span>
+              </div>
+              <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.2 rounded-full font-bold">
+                RUTE AKTIF
+              </span>
+            </div>
 
-        {checkpoint && (
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-950/90 border border-amber-500/40 rounded-full text-amber-300 text-xs font-bold shadow-lg backdrop-blur">
-            <Flag className="w-3.5 h-3.5 text-amber-400" />
-            <span>Tujuan: {checkpoint.name}</span>
+            <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
+              <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                <Ruler className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-bold text-white font-mono">{routeInfo.distanceFormatted}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-bold text-amber-300 font-mono">ETA: {routeInfo.durationFormatted}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-950/90 backdrop-blur border border-slate-800 rounded-full shadow-lg">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+            </span>
+            <span className="text-xs font-bold text-slate-200">
+              Multiplayer Convoy GPS Active
+            </span>
           </div>
         )}
       </div>
