@@ -14,7 +14,9 @@ import {
   Navigation2,
   Layers,
   Sparkles,
-  Radio
+  Radio,
+  Zap,
+  Leaf
 } from 'lucide-react';
 
 interface MultiplayerConvoyMapProps {
@@ -123,8 +125,9 @@ export default function MultiplayerConvoyMap({
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+      // Dark Eco OLED Map Tiles
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       }).addTo(map);
 
@@ -134,18 +137,18 @@ export default function MultiplayerConvoyMap({
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    // 1. Render Checkpoint Pin
+    // 1. Render Checkpoint Pin (Eco-Gold Flag)
     if (checkpoint) {
       const cpLatLng: [number, number] = [checkpoint.latitude, checkpoint.longitude];
       const checkpointIcon = L.divIcon({
         className: 'custom-checkpoint-pin',
         html: `
           <div class="relative flex items-center justify-center">
-            <div class="absolute w-14 h-14 bg-amber-400/30 rounded-full animate-ping"></div>
-            <div class="relative w-11 h-11 bg-gradient-to-tr from-amber-500 via-orange-500 to-red-500 border-2 border-white rounded-2xl flex items-center justify-center shadow-2xl text-slate-950 font-black text-base">
+            <div class="absolute w-14 h-14 bg-emerald-400/20 rounded-full animate-ping"></div>
+            <div class="relative w-11 h-11 bg-gradient-to-tr from-emerald-500 via-teal-400 to-cyan-400 border-2 border-white rounded-2xl flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.5)] text-slate-950 font-black text-base">
               🚩
             </div>
-            <div class="absolute -bottom-2 w-3 h-3 bg-red-600 rotate-45 border-r border-b border-white"></div>
+            <div class="absolute -bottom-2 w-3 h-3 bg-teal-600 rotate-45 border-r border-b border-white"></div>
           </div>
         `,
         iconSize: [44, 50],
@@ -161,10 +164,10 @@ export default function MultiplayerConvoyMap({
       }
 
       checkpointMarkerRef.current.bindPopup(`
-        <div style="font-family: sans-serif; font-size: 13px; color: #78350f; min-width: 180px;">
-          <div style="font-weight: 900; color: #b45309; font-size: 14px;">🚩 Titik Tujuan: ${checkpoint.name}</div>
-          <div style="font-size: 11px; color: #92400e; margin-top: 4px;">${checkpoint.description || 'Titik Kumpul / Finish Konvoi'}</div>
-          <div style="font-size: 10px; color: #a8a29e; margin-top: 4px; font-family: monospace;">
+        <div style="font-family: sans-serif; font-size: 13px; color: #042f2e; min-width: 180px;">
+          <div style="font-weight: 900; color: #059669; font-size: 14px;">🚩 Titik Tujuan: ${checkpoint.name}</div>
+          <div style="font-size: 11px; color: #0f766e; margin-top: 4px;">${checkpoint.description || 'Titik Kumpul / Finish Konvoi'}</div>
+          <div style="font-size: 10px; color: #64748b; margin-top: 4px; font-family: monospace;">
             ${checkpoint.latitude.toFixed(5)}, ${checkpoint.longitude.toFixed(5)}
           </div>
         </div>
@@ -172,7 +175,6 @@ export default function MultiplayerConvoyMap({
     }
 
     // 2. Render SEMUA Anggota Konvoi (Multiplayer Riders)
-    // Bersihkan marker anggota yang sudah keluar dari grup
     const activeMemberIds = new Set(members.map((m) => m.id));
     memberMarkersRef.current.forEach((marker, id) => {
       if (!activeMemberIds.has(id)) {
@@ -190,12 +192,12 @@ export default function MultiplayerConvoyMap({
         className: `custom-member-${member.id}`,
         html: `
           <div class="relative flex items-center justify-center">
-            <div class="absolute w-12 h-12 ${isMe ? 'bg-emerald-400/40 animate-pulse' : 'bg-cyan-500/30 animate-ping'} rounded-full"></div>
+            <div class="absolute w-12 h-12 ${isMe ? 'bg-emerald-400/40 animate-pulse' : 'bg-teal-400/30 animate-ping'} rounded-full"></div>
             <div class="relative w-10 h-10 ${
               isMe
-                ? 'bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500'
-                : 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500'
-            } border-2 ${isFocused ? 'border-amber-400 scale-110' : 'border-white'} rounded-2xl flex items-center justify-center shadow-2xl text-white font-black text-xs overflow-hidden transition transform">
+                ? 'bg-gradient-to-tr from-emerald-400 via-teal-400 to-cyan-400 text-black'
+                : 'bg-gradient-to-tr from-teal-700 via-emerald-800 to-slate-900 text-white'
+            } border-2 ${isFocused ? 'border-white scale-110 shadow-[0_0_20px_rgba(52,211,153,0.8)]' : 'border-emerald-300'} rounded-2xl flex items-center justify-center font-black text-xs overflow-hidden transition transform shadow-2xl">
               ${
                 member.avatar_url
                   ? `<img src="${member.avatar_url}" class="w-full h-full object-cover" />`
@@ -204,7 +206,7 @@ export default function MultiplayerConvoyMap({
                   : `<span class="uppercase">${member.name.substring(0, 2)}</span>`
               }
             </div>
-            <div class="absolute -bottom-2 w-2.5 h-2.5 ${isMe ? 'bg-emerald-700' : 'bg-indigo-700'} rotate-45 border-r border-b border-white"></div>
+            <div class="absolute -bottom-2 w-2.5 h-2.5 ${isMe ? 'bg-emerald-500' : 'bg-teal-800'} rotate-45 border-r border-b border-emerald-300"></div>
           </div>
         `,
         iconSize: [40, 46],
@@ -225,11 +227,11 @@ export default function MultiplayerConvoyMap({
       }
 
       marker.bindPopup(`
-        <div style="font-family: sans-serif; font-size: 13px; color: #0f172a; min-width: 190px;">
-          <div style="font-weight: 900; color: ${isMe ? '#047857' : '#0284c7'}; font-size: 14px;">
+        <div style="font-family: sans-serif; font-size: 13px; color: #022c22; min-width: 190px;">
+          <div style="font-weight: 900; color: ${isMe ? '#059669' : '#0284c7'}; font-size: 14px;">
             ${isMe ? '👑 (Anda) ' : '🏍️ '}${member.name}
           </div>
-          <div style="font-size: 11px; color: #64748b; margin-bottom: 4px;">${member.motorcycle_model || 'Motor'} • ${member.role}</div>
+          <div style="font-size: 11px; color: #0f766e; margin-bottom: 4px;">${member.motorcycle_model || 'Motor'} • ${member.role}</div>
           <div style="font-size: 12px; margin-bottom: 2px;">⚡ Kecepatan: <b>${member.speed ? Math.round(member.speed) + ' km/h' : '0 km/h'}</b></div>
           <div style="font-size: 12px; margin-bottom: 2px;">🔋 Baterai HP: <b>${member.battery_level ?? '-'}%</b></div>
           <div style="font-size: 11px; color: #475569; margin-top: 6px; border-top: 1px solid #e2e8f0; padding-top: 4px;">
@@ -241,7 +243,7 @@ export default function MultiplayerConvoyMap({
 
     // 3. Render Garis Jalur Tercepat Jalan Raya (OSRM Real Route Polyline)
     if (routeInfo && routeInfo.coordinates && routeInfo.coordinates.length > 0) {
-      const routeColor = vehicleMode === 'motor' ? '#06b6d4' : '#6366f1';
+      const routeColor = vehicleMode === 'motor' ? '#10b981' : '#06b6d4';
       
       if (!routePolylineRef.current) {
         routePolylineRef.current = L.polyline(routeInfo.coordinates, {
@@ -295,19 +297,19 @@ export default function MultiplayerConvoyMap({
   const isShowingMyRoute = activeFocusMember?.id === currentMemberId;
 
   return (
-    <div className="relative w-full h-full min-h-[500px] lg:min-h-[660px] bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl">
+    <div className="relative w-full h-full min-h-[500px] lg:min-h-[660px] bg-[#020604] rounded-3xl overflow-hidden border border-emerald-900/60 shadow-[0_10px_35px_rgba(0,0,0,0.9)]">
       <div ref={mapContainerRef} className="w-full h-full" />
 
       {/* Floating Toolbar Navigasi di Kanan Atas */}
       <div className="absolute top-4 right-4 z-[500] flex flex-col gap-2">
         {/* Toggle Mode Jalur Motor vs Mobil */}
-        <div className="flex bg-slate-900/95 backdrop-blur-xl border border-slate-700 p-1 rounded-2xl shadow-xl">
+        <div className="flex bg-[#040c08]/95 backdrop-blur-xl border border-emerald-900/80 p-1 rounded-2xl shadow-xl">
           <button
             onClick={() => onToggleVehicleMode('motor')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
               vehicleMode === 'motor'
-                ? 'bg-cyan-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-gradient-to-r from-emerald-400 to-teal-400 text-black shadow-md'
+                : 'text-emerald-400/60 hover:text-emerald-200'
             }`}
           >
             <Bike className="w-3.5 h-3.5" />
@@ -317,8 +319,8 @@ export default function MultiplayerConvoyMap({
             onClick={() => onToggleVehicleMode('mobil')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
               vehicleMode === 'mobil'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-cyan-500 text-black shadow-md'
+                : 'text-emerald-400/60 hover:text-emerald-200'
             }`}
           >
             <Car className="w-3.5 h-3.5" />
@@ -330,9 +332,9 @@ export default function MultiplayerConvoyMap({
           <button
             onClick={handleCenterCheckpoint}
             title="Pusatkan ke Titik Tujuan"
-            className="flex items-center gap-2 px-3.5 py-2 bg-slate-900/95 backdrop-blur-xl border border-amber-500/50 text-amber-300 hover:text-white hover:bg-amber-600 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95"
+            className="flex items-center gap-2 px-3.5 py-2 bg-[#040c08]/95 backdrop-blur-xl border border-emerald-500/40 text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95 cursor-pointer"
           >
-            <Flag className="w-4 h-4 text-amber-400" />
+            <Flag className="w-4 h-4 text-emerald-400" />
             <span>Titik Tujuan</span>
           </button>
         )}
@@ -340,7 +342,7 @@ export default function MultiplayerConvoyMap({
         <button
           onClick={handleCenterMe}
           title="Pusatkan ke Posisi Anda"
-          className="flex items-center gap-2 px-3.5 py-2 bg-slate-900/95 backdrop-blur-xl border border-emerald-500/50 text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95"
+          className="flex items-center gap-2 px-3.5 py-2 bg-[#040c08]/95 backdrop-blur-xl border border-emerald-500/40 text-emerald-300 hover:text-white hover:bg-emerald-600 rounded-2xl shadow-xl transition text-xs font-bold transform active:scale-95 cursor-pointer"
         >
           <Crosshair className="w-4 h-4 text-emerald-400" />
           <span>Posisi Saya</span>
@@ -349,9 +351,9 @@ export default function MultiplayerConvoyMap({
         <button
           onClick={handleFitAll}
           title="Lihat Seluruh Anggota Konvoi & Jalur"
-          className="flex items-center gap-2 px-3.5 py-2 bg-slate-900/90 backdrop-blur border border-slate-700 text-slate-300 hover:text-white hover:bg-indigo-600 rounded-2xl shadow-xl transition text-xs font-semibold"
+          className="flex items-center gap-2 px-3.5 py-2 bg-[#040c08]/90 backdrop-blur border border-emerald-900 text-emerald-300 hover:text-white hover:bg-emerald-800 rounded-2xl shadow-xl transition text-xs font-semibold cursor-pointer"
         >
-          <Maximize2 className="w-4 h-4 text-indigo-400" />
+          <Maximize2 className="w-4 h-4 text-emerald-400" />
           <span>Lihat Rute</span>
         </button>
       </div>
@@ -360,56 +362,56 @@ export default function MultiplayerConvoyMap({
       <div className="absolute top-4 left-4 z-[500] flex flex-col gap-2 max-w-xs sm:max-w-sm">
         {/* Banner Navigasi Rute Tercepat */}
         {routeInfo && routeInfo.distanceFormatted ? (
-          <div className="bg-slate-950/95 backdrop-blur-xl border border-cyan-500/40 p-3 rounded-2xl shadow-2xl space-y-1.5 animate-in fade-in">
+          <div className="bg-[#030906]/95 backdrop-blur-xl border border-emerald-500/40 p-3 rounded-2xl shadow-[0_0_25px_rgba(16,185,129,0.2)] space-y-1.5 animate-in fade-in">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-cyan-400">
-                <Navigation2 className="w-3.5 h-3.5 rotate-45" />
+              <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-emerald-400">
+                <Navigation2 className="w-3.5 h-3.5 rotate-45 text-emerald-400" />
                 <span>
                   Jalur {isShowingMyRoute ? 'Anda' : activeFocusMember?.name} ({vehicleMode === 'motor' ? '🏍️ Motor' : '🚗 Mobil'})
                 </span>
               </div>
-              <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.2 rounded-full font-bold">
-                JALUR TERCEPAT
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.2 rounded-full font-bold font-mono">
+                ECO-NAV
               </span>
             </div>
 
-            <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
-              <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                <Ruler className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex items-center justify-between pt-1 border-t border-emerald-950">
+              <div className="flex items-center gap-1.5 text-xs text-emerald-200">
+                <Ruler className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="font-bold text-white font-mono">{routeInfo.distanceFormatted}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-bold text-amber-300 font-mono">ETA: {routeInfo.durationFormatted}</span>
+              <div className="flex items-center gap-1.5 text-xs text-emerald-200">
+                <Clock className="w-3.5 h-3.5 text-teal-400" />
+                <span className="font-bold text-teal-300 font-mono">ETA: {routeInfo.durationFormatted}</span>
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-950/90 backdrop-blur border border-slate-800 rounded-full shadow-lg">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-[#030906]/90 backdrop-blur border border-emerald-900/80 rounded-full shadow-lg">
             <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
-            <span className="text-xs font-bold text-slate-200">
-              Multiplayer Convoy GPS Active
+            <span className="text-xs font-bold text-emerald-300 font-mono">
+              Eco-Convoy Telemetry Active
             </span>
           </div>
         )}
       </div>
 
       {/* Legend Marker di Kiri Bawah */}
-      <div className="absolute bottom-4 left-4 z-[500] bg-slate-950/90 backdrop-blur border border-slate-800 text-xs px-3.5 py-2.5 rounded-2xl text-slate-300 flex flex-wrap items-center gap-4 shadow-xl">
+      <div className="absolute bottom-4 left-4 z-[500] bg-[#030906]/90 backdrop-blur border border-emerald-900/80 text-xs px-3.5 py-2.5 rounded-2xl text-emerald-300 flex flex-wrap items-center gap-4 shadow-xl font-mono">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 border border-white" />
-          <span className="text-[11px] font-bold text-slate-300">👑 Anda</span>
+          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 border border-white" />
+          <span className="text-[11px] font-bold text-emerald-200">👑 Anda</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 border border-white" />
-          <span className="text-[11px] font-bold text-slate-300">🏍️ Teman Konvoi</span>
+          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-teal-600 to-slate-800 border border-emerald-400" />
+          <span className="text-[11px] font-bold text-emerald-300">🏍️ Teman</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-amber-500 to-red-500 border border-white" />
-          <span className="text-[11px] font-bold text-slate-300">🚩 Checkpoint</span>
+          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 border border-white" />
+          <span className="text-[11px] font-bold text-emerald-200">🚩 Tujuan</span>
         </div>
       </div>
     </div>

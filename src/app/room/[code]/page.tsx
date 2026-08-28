@@ -30,15 +30,17 @@ import {
   ShieldAlert,
   Lock,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  Leaf,
+  Zap
 } from 'lucide-react';
 
 const MultiplayerConvoyMap = dynamic(() => import('@/components/MultiplayerConvoyMap'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full min-h-[520px] bg-slate-900 rounded-3xl flex flex-col items-center justify-center text-slate-500 border border-slate-800">
-      <div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-3" />
-      <span className="text-xs font-semibold">Memuat Peta Konvoi & Satelit GPS...</span>
+    <div className="w-full h-full min-h-[520px] bg-[#020604] rounded-3xl flex flex-col items-center justify-center text-emerald-600 border border-emerald-900/60 font-mono">
+      <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
+      <span className="text-xs font-semibold tracking-wider">MENGHUBUNGKAN SATELIT GPS ECO-SYNC...</span>
     </div>
   ),
 });
@@ -285,19 +287,16 @@ export default function ConvoyRoomPage() {
     setLeaveLoading(true);
     try {
       if (myMemberId && groupCode) {
-        // Hentikan watcher GPS
         if (watchIdRef.current !== null && typeof navigator !== 'undefined') {
           navigator.geolocation.clearWatch(watchIdRef.current);
         }
 
-        // Kirim API leave group
         await fetch(`/api/groups/${groupCode}/leave`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ memberId: myMemberId })
         });
 
-        // Hapus session lokal
         localStorage.removeItem(`ridesync_member_${groupCode}`);
         localStorage.removeItem(`ridesync_group_cache_${groupCode}`);
       }
@@ -356,27 +355,27 @@ export default function ConvoyRoomPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-center">
-        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-slate-400 text-sm font-semibold">Memuat Room Konvoi {groupCode}...</p>
+      <div className="min-h-screen bg-[#030705] flex flex-col items-center justify-center p-4 text-center font-mono">
+        <div className="w-12 h-12 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-emerald-400 text-xs font-bold tracking-widest uppercase">MEMUAT ROOM KONVOI {groupCode}...</p>
       </div>
     );
   }
 
   if (error || !group) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
+      <div className="min-h-screen bg-[#030705] flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-[#050d09] border border-emerald-900/80 rounded-3xl p-6 text-center space-y-4 shadow-2xl">
           <div className="w-14 h-14 bg-red-500/10 text-red-400 rounded-2xl flex items-center justify-center mx-auto border border-red-500/20">
             <Users className="w-7 h-7" />
           </div>
           <h2 className="text-lg font-bold text-white">Grup Konvoi Tidak Ditemukan</h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Kode grup konvoi <b className="text-cyan-400">{groupCode}</b> tidak valid atau telah selesai.
+          <p className="text-xs text-emerald-400/60 leading-relaxed">
+            Kode grup konvoi <b className="text-emerald-400">{groupCode}</b> tidak valid atau telah selesai.
           </p>
           <button
             onClick={() => router.push('/')}
-            className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl text-xs font-bold transition inline-flex items-center gap-2"
+            className="py-2.5 px-4 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-200 border border-emerald-800 rounded-2xl text-xs font-bold transition inline-flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Kembali ke Beranda</span>
@@ -391,30 +390,32 @@ export default function ConvoyRoomPage() {
   // ==============================================================================
   if (!myMemberId) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 selection:bg-cyan-500 selection:text-black relative overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-cyan-600/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="min-h-screen bg-[#030705] flex flex-col items-center justify-center p-4 selection:bg-emerald-400 selection:text-black relative overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
 
-        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800/90 rounded-3xl p-7 shadow-2xl backdrop-blur-2xl relative z-10 space-y-5">
+        <div className="w-full max-w-md bg-[#050d09]/95 border border-emerald-900/80 rounded-3xl p-7 shadow-[0_10px_40px_rgba(0,0,0,0.9)] backdrop-blur-2xl relative z-10 space-y-5">
           {/* Header Undangan Grup */}
           <div className="text-center space-y-1.5">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-900/30 mx-auto">
-              <Bike className="w-7 h-7 text-white" />
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.3)] mx-auto p-[2px]">
+              <div className="w-full h-full bg-[#040d09] rounded-[14px] flex items-center justify-center">
+                <Bike className="w-7 h-7 text-emerald-400" />
+              </div>
             </div>
-            <span className="text-[10px] px-2.5 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full font-bold uppercase tracking-wider">
+            <span className="text-[10px] px-2.5 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-full font-bold uppercase tracking-wider font-mono">
               Undangan Konvoi Motor
             </span>
             <h1 className="text-xl font-black text-white">{group.name}</h1>
-            <p className="text-xs text-slate-400">
-              Kode Room: <b className="text-cyan-400 font-mono">{group.code}</b> • Dibuat oleh: <b className="text-slate-200">{group.created_by}</b>
+            <p className="text-xs text-emerald-400/60 font-mono">
+              Kode Room: <b className="text-emerald-300 font-bold">{group.code}</b> • Captain: <b className="text-white">{group.created_by}</b>
             </p>
           </div>
 
           {/* Info Checkpoint Tujuan */}
           {group.checkpoint && (
-            <div className="bg-amber-950/30 border border-amber-500/30 p-3 rounded-2xl flex items-center gap-2.5 text-xs text-amber-300">
-              <Flag className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="bg-emerald-950/40 border border-emerald-500/30 p-3.5 rounded-2xl flex items-center gap-3 text-xs text-emerald-200">
+              <Flag className="w-4 h-4 text-emerald-400 shrink-0" />
               <div className="min-w-0">
-                <span className="text-[10px] text-amber-400/80 block uppercase font-bold">Titik Tujuan Konvoi</span>
+                <span className="text-[10px] text-emerald-400/80 block uppercase font-bold font-mono">Titik Tujuan Konvoi</span>
                 <span className="font-bold text-white truncate block">{group.checkpoint.name}</span>
               </div>
             </div>
@@ -423,8 +424,8 @@ export default function ConvoyRoomPage() {
           {/* Form Gabung */}
           <form onSubmit={handleJoinSubmit} className="space-y-3.5 text-xs">
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">
-                Nama Rider / Panggilan <span className="text-red-400">*</span>
+              <label className="block text-emerald-200 font-semibold mb-1">
+                Nama Rider / Panggilan <span className="text-emerald-400">*</span>
               </label>
               <input
                 type="text"
@@ -432,27 +433,27 @@ export default function ConvoyRoomPage() {
                 placeholder="Contoh: Budi / Dani ZX25R"
                 value={joinName}
                 onChange={(e) => setJoinName(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
+                className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition"
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Model Kendaraan</label>
+              <label className="block text-emerald-200 font-semibold mb-1">Model Kendaraan</label>
               <input
                 type="text"
-                placeholder="Contoh: Honda CBR250RR / Yamaha NMAX / Mobil Avanza"
+                placeholder="Contoh: Honda CBR250RR / Yamaha NMAX / Mobilio"
                 value={joinMotor}
                 onChange={(e) => setJoinMotor(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
+                className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white placeholder:text-emerald-900 focus:outline-none transition"
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 font-semibold mb-1">Peran di Konvoi</label>
+              <label className="block text-emerald-200 font-semibold mb-1">Peran di Konvoi</label>
               <select
                 value={joinRole}
                 onChange={(e: any) => setJoinRole(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-2xl py-2.5 px-3.5 text-sm text-white focus:outline-none transition"
+                className="w-full bg-[#020704] border border-emerald-900 focus:border-emerald-400 rounded-2xl py-2.5 px-3.5 text-sm text-white focus:outline-none transition"
               >
                 <option value="Anggota Konvoi">🏍️ Anggota Konvoi (Rider)</option>
                 <option value="Sweeper">🛡️ Sweeper (Pengawal Belakang)</option>
@@ -465,13 +466,13 @@ export default function ConvoyRoomPage() {
             <button
               type="submit"
               disabled={joinLoading || !joinName}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-extrabold rounded-2xl text-sm shadow-xl shadow-cyan-950 transition flex items-center justify-center gap-2 transform active:scale-95"
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-black font-black rounded-2xl text-sm shadow-[0_0_25px_rgba(16,185,129,0.35)] transition flex items-center justify-center gap-2 transform active:scale-95 cursor-pointer"
             >
               {joinLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
               ) : (
                 <>
-                  <Play className="w-4 h-4" />
+                  <Play className="w-4 h-4 fill-current" />
                   <span>Gabung ke Peta Konvoi & Aktifkan GPS</span>
                 </>
               )}
@@ -486,29 +487,29 @@ export default function ConvoyRoomPage() {
   // MULTIPLAYER CONVOY ROOM DASHBOARD (Semua Rider Melihat Peta Bersama)
   // ==============================================================================
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-100 selection:bg-cyan-500 selection:text-black">
+    <div className="min-h-screen bg-[#030705] flex flex-col font-sans text-emerald-50 selection:bg-emerald-400 selection:text-black">
       {/* Top Navbar Header */}
-      <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-xl sticky top-0 z-40 shadow-xl">
+      <header className="border-b border-emerald-950/80 bg-[#040806]/90 backdrop-blur-2xl sticky top-0 z-40 shadow-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsLeaveModalOpen(true)}
               title="Keluar dari Grup Konvoi"
-              className="flex items-center gap-1.5 py-2 px-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition shadow"
+              className="flex items-center gap-1.5 py-1.5 px-3 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-red-300 hover:text-white rounded-xl text-xs font-bold transition shadow font-mono cursor-pointer"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Keluar Grup</span>
             </button>
 
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-black text-white tracking-tight">{group.name}</h1>
-                <span className="text-[10px] px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-full font-mono font-bold">
+                <span className="text-[10px] px-2 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-full font-mono font-bold">
                   {group.code}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
-                {group.members.length} Rider Terhubung • Anda: <b className="text-cyan-400">{myMember?.name}</b> {isCaptain && <span className="text-amber-400 font-bold">(Road Captain)</span>}
+              <p className="text-[11px] text-emerald-400/60 font-mono">
+                {group.members.length} Rider Terhubung • Anda: <b className="text-emerald-300">{myMember?.name}</b> {isCaptain && <span className="text-teal-300 font-bold">(Road Captain)</span>}
               </p>
             </div>
           </div>
@@ -519,22 +520,22 @@ export default function ConvoyRoomPage() {
               <button
                 onClick={() => setIsCheckpointModalOpen(true)}
                 title="Atur Titik Tujuan Konvoi (Hanya Road Captain)"
-                className="flex items-center gap-1.5 py-1.5 px-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition shadow-lg shadow-amber-950/30"
+                className="flex items-center gap-1.5 py-1.5 px-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold transition shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer"
               >
-                <Flag className="w-3.5 h-3.5 text-amber-400" />
+                <Flag className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="hidden sm:inline">Set Tujuan (Captain)</span>
                 <span className="sm:hidden">Set Tujuan</span>
               </button>
             ) : (
-              <div className="hidden sm:flex items-center gap-1.5 py-1.5 px-2.5 bg-slate-900 border border-slate-800 text-[11px] text-slate-400 rounded-xl">
-                <Lock className="w-3 h-3 text-slate-500" />
+              <div className="hidden sm:flex items-center gap-1.5 py-1.5 px-2.5 bg-emerald-950/40 border border-emerald-900/60 text-[11px] text-emerald-400/70 rounded-xl font-mono">
+                <Lock className="w-3 h-3 text-emerald-600" />
                 <span>Tujuan diatur Captain</span>
               </div>
             )}
 
             <button
               onClick={handleCopyGroupLink}
-              className="flex items-center gap-1.5 py-1.5 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition shadow"
+              className="flex items-center gap-1.5 py-1.5 px-3 bg-[#06100c] hover:bg-emerald-950 border border-emerald-900 text-emerald-200 rounded-xl text-xs font-bold transition shadow font-mono cursor-pointer"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span className="hidden sm:inline">{copied ? 'Tersalin!' : 'Salin Link'}</span>
@@ -542,7 +543,7 @@ export default function ConvoyRoomPage() {
 
             <button
               onClick={handleShareWhatsApp}
-              className="flex items-center gap-1.5 py-1.5 px-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-950"
+              className="flex items-center gap-1.5 py-1.5 px-3.5 bg-emerald-600 hover:bg-emerald-500 text-black font-extrabold rounded-xl text-xs transition shadow-[0_0_20px_rgba(16,185,129,0.3)] cursor-pointer"
             >
               <MessageSquare className="w-3.5 h-3.5" />
               <span>Share WA</span>
@@ -557,34 +558,35 @@ export default function ConvoyRoomPage() {
         <section className="lg:col-span-5 flex flex-col gap-4">
           {/* Active Checkpoint Banner */}
           {group.checkpoint && (
-            <div className="bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/30 p-4 rounded-3xl flex items-center justify-between gap-3 shadow-xl">
+            <div className="bg-[#050d09]/95 border border-emerald-500/30 p-4 rounded-3xl flex items-center justify-between gap-3 shadow-[0_0_25px_rgba(16,185,129,0.1)]">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
                   <Flag className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Titik Tujuan Bersama</span>
+                    <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider font-mono">Titik Tujuan Bersama</span>
                     {isCaptain && (
-                      <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-bold">
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-bold font-mono">
                         Bisa Diedit
                       </span>
                     )}
                   </div>
                   <h3 className="text-sm font-black text-white truncate">{group.checkpoint.name}</h3>
-                  <p className="text-[11px] text-slate-400 truncate">{group.checkpoint.description || 'Titik Kumpul / Rest Area'}</p>
+                  <p className="text-[11px] text-emerald-400/60 truncate">{group.checkpoint.description || 'Titik Kumpul / Rest Area'}</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* Convoy Members List */}
-          <div className="bg-slate-900/80 border border-slate-800/90 rounded-3xl p-5 shadow-2xl backdrop-blur-xl flex flex-col gap-3.5">
+          <div className="bg-[#050d09]/90 border border-emerald-900/70 rounded-3xl p-5 shadow-2xl backdrop-blur-xl flex flex-col gap-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-white font-bold text-sm">
-                <Radio className="w-4 h-4 text-cyan-400" />
+                <Radio className="w-4 h-4 text-emerald-400" />
                 <span>Rombongan Konvoi ({group.members.length} Rider)</span>
               </div>
+              <span className="text-[10px] text-emerald-500 font-mono">Eco-Live GPS</span>
             </div>
 
             <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
@@ -599,16 +601,16 @@ export default function ConvoyRoomPage() {
                     key={member.id}
                     className={`p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 ${
                       isMe
-                        ? 'bg-emerald-950/40 border-emerald-500/60 shadow-md shadow-emerald-950/40'
-                        : 'bg-slate-950/60 border-slate-800/80 hover:border-cyan-500/40'
+                        ? 'bg-emerald-950/40 border-emerald-500/60 shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+                        : 'bg-[#020704]/80 border-emerald-950 hover:border-emerald-800'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-11 h-11 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-white text-xs uppercase overflow-hidden shrink-0">
+                      <div className="w-11 h-11 rounded-2xl bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center font-bold text-white text-xs uppercase overflow-hidden shrink-0">
                         {member.avatar_url ? (
                           <img src={member.avatar_url} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <Bike className={`w-5 h-5 ${isMe ? 'text-emerald-400' : 'text-cyan-400'}`} />
+                          <Bike className={`w-5 h-5 ${isMe ? 'text-emerald-400' : 'text-teal-400'}`} />
                         )}
                       </div>
 
@@ -617,11 +619,11 @@ export default function ConvoyRoomPage() {
                           <h4 className="text-xs font-bold text-white truncate">
                             {member.name} {isMe && <span className="text-emerald-400">(Anda)</span>}
                           </h4>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${isMe ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-cyan-300'}`}>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold font-mono ${isMe ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-950 text-teal-300'}`}>
                             {member.role}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                        <p className="text-[11px] text-emerald-400/60 truncate mt-0.5">
                           {member.motorcycle_model || 'Motor Rider'}
                         </p>
                       </div>
@@ -629,11 +631,11 @@ export default function ConvoyRoomPage() {
 
                     <div className="text-right shrink-0">
                       <div className="flex items-center justify-end gap-1.5 text-xs font-mono font-bold text-white">
-                        <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+                        <Gauge className="w-3.5 h-3.5 text-emerald-400" />
                         <span>{member.speed ? Math.round(member.speed) : 0} km/h</span>
                       </div>
                       {distanceToCp !== null && (
-                        <span className="text-[10px] text-amber-400 block font-mono mt-0.5">
+                        <span className="text-[10px] text-teal-400 block font-mono mt-0.5">
                           Ke Tujuan: {distanceToCp < 1 ? `${Math.round(distanceToCp * 1000)}m` : `${distanceToCp.toFixed(1)}km`}
                         </span>
                       )}
@@ -673,14 +675,14 @@ export default function ConvoyRoomPage() {
       {/* Modal Konfirmasi Keluar dari Grup */}
       {isLeaveModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="max-w-sm w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+          <div className="max-w-sm w-full bg-[#050d09] border border-red-900/50 rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
 
             <div className="text-center space-y-1.5">
               <h3 className="text-base font-black text-white">Keluar dari Konvoi?</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-emerald-300/60 leading-relaxed">
                 Posisi motor Anda akan dihapus dari peta rombongan dan pelacakan GPS akan dihentikan.
               </p>
             </div>
@@ -689,14 +691,14 @@ export default function ConvoyRoomPage() {
               <button
                 onClick={() => setIsLeaveModalOpen(false)}
                 disabled={leaveLoading}
-                className="flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition"
+                className="flex-1 py-2.5 px-4 bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 rounded-xl text-xs font-bold transition font-mono cursor-pointer"
               >
                 Batal
               </button>
               <button
                 onClick={handleConfirmLeave}
                 disabled={leaveLoading}
-                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-red-950"
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-red-950 font-mono cursor-pointer"
               >
                 {leaveLoading ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
