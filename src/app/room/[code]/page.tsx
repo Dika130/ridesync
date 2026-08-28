@@ -204,6 +204,45 @@ export default function ConvoyRoomPage() {
     return () => clearInterval(interval);
   }, [groupCode, myMemberId, router]);
 
+function playConvoyAlertSound(isUrgent?: boolean) {
+  try {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      if (isUrgent) {
+        navigator.vibrate([250, 100, 250, 100, 500]);
+      } else {
+        navigator.vibrate(100);
+      }
+    }
+
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    if (isUrgent) {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(440, ctx.currentTime + 0.15);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } else {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    }
+  } catch (e) {}
+}
+
   // Fetch Live Chat Messages continuously
   useEffect(() => {
     if (!groupCode) return;
@@ -214,6 +253,15 @@ export default function ConvoyRoomPage() {
         if (res.ok) {
           const data = await res.json();
           const msgs: ConvoyMessage[] = data.messages || [];
+          
+          // Deteksi pesan baru masuk untuk sound alert
+          if (msgs.length > lastSeenMsgCountRef.current && lastSeenMsgCountRef.current > 0) {
+            const latest = msgs[msgs.length - 1];
+            if (latest && latest.sender_id !== myMemberId) {
+              playConvoyAlertSound(latest.is_urgent);
+            }
+          }
+
           setMessages(msgs);
 
           if (!isChatOpen) {
@@ -230,7 +278,7 @@ export default function ConvoyRoomPage() {
     fetchMessages();
     const chatInterval = setInterval(fetchMessages, 2000);
     return () => clearInterval(chatInterval);
-  }, [groupCode, isChatOpen]);
+  }, [groupCode, isChatOpen, myMemberId]);
 
   // Auto scroll chat to bottom when open
   useEffect(() => {
