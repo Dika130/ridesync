@@ -16,12 +16,15 @@ import {
   Sparkles,
   Radio,
   Zap,
-  Leaf
+  Leaf,
+  Eye
 } from 'lucide-react';
 
 interface MultiplayerConvoyMapProps {
   members: GroupMember[];
   currentMemberId?: string;
+  focusedMemberId?: string;
+  onSelectMember?: (memberId: string) => void;
   checkpoint?: Checkpoint | null;
   vehicleMode: 'motor' | 'mobil';
   onToggleVehicleMode: (mode: 'motor' | 'mobil') => void;
@@ -30,6 +33,8 @@ interface MultiplayerConvoyMapProps {
 export default function MultiplayerConvoyMap({
   members = [],
   currentMemberId,
+  focusedMemberId,
+  onSelectMember,
   checkpoint,
   vehicleMode,
   onToggleVehicleMode,
@@ -42,8 +47,8 @@ export default function MultiplayerConvoyMap({
   const checkpointMarkerRef = useRef<any>(null);
   const routePolylineRef = useRef<any>(null);
 
-  // Selected Rider to view navigation route (defaults to current viewer)
-  const [selectedFocusMemberId, setSelectedFocusMemberId] = useState<string | undefined>(currentMemberId);
+  // Selected Rider to view navigation route
+  const activeFocusMemberId = focusedMemberId || currentMemberId;
 
   // Routing Info State
   const [routeInfo, setRouteInfo] = useState<{
@@ -53,14 +58,8 @@ export default function MultiplayerConvoyMap({
   } | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
 
-  useEffect(() => {
-    if (currentMemberId && !selectedFocusMemberId) {
-      setSelectedFocusMemberId(currentMemberId);
-    }
-  }, [currentMemberId, selectedFocusMemberId]);
-
   const activeFocusMember =
-    members.find((m) => m.id === selectedFocusMemberId) ||
+    members.find((m) => m.id === activeFocusMemberId) ||
     members.find((m) => m.id === currentMemberId) ||
     members[0];
 
@@ -71,7 +70,7 @@ export default function MultiplayerConvoyMap({
     setMounted(true);
   }, []);
 
-  // Fetch OSRM Road Navigation Route when position or checkpoint or vehicleMode changes
+  // Fetch Road Navigation Route when position or checkpoint or vehicleMode or activeFocusMember changes
   useEffect(() => {
     if (!activeFocusMember || !checkpoint) return;
     const destLat = checkpoint.latitude;
@@ -101,7 +100,7 @@ export default function MultiplayerConvoyMap({
     }
 
     fetchRoute();
-  }, [activeFocusMember?.latitude, activeFocusMember?.longitude, checkpoint?.latitude, checkpoint?.longitude, vehicleMode]);
+  }, [activeFocusMember?.id, activeFocusMember?.latitude, activeFocusMember?.longitude, checkpoint?.latitude, checkpoint?.longitude, vehicleMode]);
 
   // Leaflet Map Render
   useEffect(() => {
@@ -184,19 +183,21 @@ export default function MultiplayerConvoyMap({
 
     members.forEach((member) => {
       const isMe = member.id === currentMemberId;
-      const isFocused = member.id === selectedFocusMemberId;
+      const isFocused = member.id === activeFocusMemberId;
       const latLng: [number, number] = [member.latitude, member.longitude];
 
       const riderIcon = L.divIcon({
         className: `custom-member-${member.id}`,
         html: `
           <div class="relative flex items-center justify-center">
-            <div class="absolute w-12 h-12 ${isMe ? 'bg-emerald-400/40 animate-pulse' : 'bg-teal-400/30 animate-ping'} rounded-full"></div>
+            <div class="absolute w-12 h-12 ${isFocused ? 'bg-emerald-400/50 animate-ping' : isMe ? 'bg-emerald-400/30' : 'bg-teal-400/20'} rounded-full"></div>
             <div class="relative w-10 h-10 ${
-              isMe
-                ? 'bg-gradient-to-tr from-emerald-400 via-teal-400 to-cyan-400 text-black'
-                : 'bg-gradient-to-tr from-teal-700 via-emerald-800 to-slate-900 text-white'
-            } border-2 ${isFocused ? 'border-white scale-110 shadow-[0_0_20px_rgba(52,211,153,0.8)]' : 'border-emerald-300'} rounded-2xl flex items-center justify-center font-black text-xs overflow-hidden transition transform shadow-2xl">
+              isFocused
+                ? 'bg-gradient-to-tr from-emerald-300 via-teal-400 to-cyan-300 text-black border-2 border-white scale-115 shadow-[0_0_30px_rgba(52,211,153,1)]'
+                : isMe
+                ? 'bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 text-black border-2 border-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
+                : 'bg-gradient-to-tr from-teal-800 via-emerald-900 to-slate-900 text-white border-2 border-teal-500'
+            } rounded-2xl flex items-center justify-center font-black text-xs overflow-hidden transition transform">
               ${
                 member.avatar_url
                   ? `<img src="${member.avatar_url}" class="w-full h-full object-cover" />`
@@ -205,7 +206,7 @@ export default function MultiplayerConvoyMap({
                   : `<span class="uppercase">${member.name.substring(0, 2)}</span>`
               }
             </div>
-            <div class="absolute -bottom-2 w-2.5 h-2.5 ${isMe ? 'bg-emerald-500' : 'bg-teal-800'} rotate-45 border-r border-b border-emerald-300"></div>
+            <div class="absolute -bottom-2 w-2.5 h-2.5 ${isFocused || isMe ? 'bg-emerald-400' : 'bg-teal-800'} rotate-45 border-r border-b border-emerald-300"></div>
           </div>
         `,
         iconSize: [40, 46],
@@ -217,7 +218,7 @@ export default function MultiplayerConvoyMap({
       if (!marker) {
         marker = L.marker(latLng, { icon: riderIcon }).addTo(map);
         marker.on('click', () => {
-          setSelectedFocusMemberId(member.id);
+          if (onSelectMember) onSelectMember(member.id);
         });
         memberMarkersRef.current.set(member.id, marker);
       } else {
@@ -234,7 +235,7 @@ export default function MultiplayerConvoyMap({
           <div style="font-size: 12px; margin-bottom: 2px;">⚡ Kecepatan: <b>${member.speed ? Math.round(member.speed) + ' km/h' : '0 km/h'}</b></div>
           <div style="font-size: 12px; margin-bottom: 2px;">🔋 Baterai HP: <b>${member.battery_level ?? '-'}%</b></div>
           <div style="font-size: 11px; color: #475569; margin-top: 6px; border-top: 1px solid #e2e8f0; padding-top: 4px;">
-            ${member.address || 'Memuat jalan...'}
+            ${member.address || 'Memuat lokasi...'}
           </div>
         </div>
       `);
@@ -256,12 +257,12 @@ export default function MultiplayerConvoyMap({
         routePolylineRef.current.setStyle({ color: routeColor });
       }
     }
-  }, [mounted, members, currentMemberId, selectedFocusMemberId, checkpoint, routeInfo, vehicleMode, defaultLat, defaultLng]);
+  }, [mounted, members, currentMemberId, activeFocusMemberId, checkpoint, routeInfo, vehicleMode, defaultLat, defaultLng]);
 
   const handleCenterMe = () => {
     const me = members.find((m) => m.id === currentMemberId);
     if (mapInstanceRef.current && me) {
-      setSelectedFocusMemberId(me.id);
+      if (onSelectMember) onSelectMember(me.id);
       mapInstanceRef.current.setView([me.latitude, me.longitude], 16, { animate: true });
       const marker = memberMarkersRef.current.get(me.id);
       if (marker) marker.openPopup();
@@ -357,8 +358,8 @@ export default function MultiplayerConvoyMap({
         </button>
       </div>
 
-      {/* Info Route & ETA Banner di Kiri Atas - DESAIN RAPI, BERSIH, TANPA OVERLAP */}
-      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-[500] flex flex-col gap-2 max-w-[240px] sm:max-w-[300px]">
+      {/* Info Route & ETA Banner di Kiri Atas */}
+      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-[500] flex flex-col gap-2 max-w-[250px] sm:max-w-[310px]">
         {routeInfo && routeInfo.distanceFormatted ? (
           <div className="bg-[#030906]/95 backdrop-blur-2xl border border-emerald-500/40 p-3 sm:p-3.5 rounded-2xl shadow-[0_4px_25px_rgba(0,0,0,0.8)] space-y-2 animate-in fade-in">
             {/* Header Title */}
@@ -396,6 +397,16 @@ export default function MultiplayerConvoyMap({
                 </span>
               </div>
             </div>
+
+            {/* Tombol Kembalikan ke Rute Saya jika sedang melihat rider lain */}
+            {!isShowingMyRoute && (
+              <button
+                onClick={handleCenterMe}
+                className="w-full py-1 px-2 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/50 text-emerald-300 rounded-lg text-[10px] font-bold font-mono transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Kembali ke Rute Anda</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-[#030906]/95 backdrop-blur-xl border border-emerald-900/80 rounded-full shadow-lg">

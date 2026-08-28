@@ -34,7 +34,8 @@ import {
   Leaf,
   Zap,
   UserX,
-  Shield
+  Shield,
+  Eye
 } from 'lucide-react';
 
 const MultiplayerConvoyMap = dynamic(() => import('@/components/MultiplayerConvoyMap'), {
@@ -76,6 +77,8 @@ export default function ConvoyRoomPage() {
 
   // My Member Identity in this room
   const [myMemberId, setMyMemberId] = useState<string | null>(null);
+  const [focusedMemberId, setFocusedMemberId] = useState<string | undefined>(undefined);
+
   const [joinName, setJoinName] = useState('');
   const [joinMotor, setJoinMotor] = useState('');
   const [joinRole, setJoinRole] = useState<'Road Captain' | 'Sweeper' | 'Anggota Konvoi' | 'Medis' | 'Logistik'>('Anggota Konvoi');
@@ -105,9 +108,12 @@ export default function ConvoyRoomPage() {
   useEffect(() => {
     if (typeof window !== 'undefined' && groupCode) {
       const saved = localStorage.getItem(`ridesync_member_${groupCode}`);
-      if (saved) setMyMemberId(saved);
+      if (saved) {
+        setMyMemberId(saved);
+        if (!focusedMemberId) setFocusedMemberId(saved);
+      }
     }
-  }, [groupCode]);
+  }, [groupCode, focusedMemberId]);
 
   // Read Battery
   useEffect(() => {
@@ -144,7 +150,6 @@ export default function ConvoyRoomPage() {
             router.push('/');
           }
         } else {
-          // Jika grup dibubarkan atau tidak ada
           if (typeof window !== 'undefined') {
             localStorage.removeItem(`ridesync_group_cache_${groupCode}`);
             localStorage.removeItem(`ridesync_member_${groupCode}`);
@@ -250,6 +255,7 @@ export default function ConvoyRoomPage() {
         if (res.ok) {
           const data = await res.json();
           setMyMemberId(data.memberId);
+          setFocusedMemberId(data.memberId);
           localStorage.setItem(`ridesync_member_${groupCode}`, data.memberId);
           if (data.group) {
             setGroup(data.group);
@@ -293,14 +299,12 @@ export default function ConvoyRoomPage() {
         }
 
         if (isCaptain) {
-          // BUBARKAN GRUP KARENA ROAD CAPTAIN KELUAR
           await fetch(`/api/groups/${groupCode}/disband`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ memberId: myMemberId })
           });
         } else {
-          // ANGGOTA BIASA KELUAR
           await fetch(`/api/groups/${groupCode}/leave`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -636,12 +640,13 @@ export default function ConvoyRoomPage() {
                 <Radio className="w-4 h-4 text-emerald-400" />
                 <span>Rombongan Konvoi ({group.members.length} Rider)</span>
               </div>
-              <span className="text-[10px] text-emerald-500 font-mono">Eco-Live GPS</span>
+              <span className="text-[10px] text-emerald-500 font-mono">Klik Rider untuk Pantau Jalurnya</span>
             </div>
 
             <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
               {group.members.map((member) => {
                 const isMe = member.id === myMemberId;
+                const isFocused = member.id === focusedMemberId;
                 const distanceToCp = group.checkpoint
                   ? calculateDistance(member.latitude, member.longitude, group.checkpoint.latitude, group.checkpoint.longitude)
                   : null;
@@ -649,9 +654,12 @@ export default function ConvoyRoomPage() {
                 return (
                   <div
                     key={member.id}
-                    className={`p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 ${
-                      isMe
-                        ? 'bg-emerald-950/40 border-emerald-500/60 shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+                    onClick={() => setFocusedMemberId(member.id)}
+                    className={`p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 cursor-pointer ${
+                      isFocused
+                        ? 'bg-emerald-950/60 border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.25)] ring-1 ring-emerald-400/50'
+                        : isMe
+                        ? 'bg-emerald-950/30 border-emerald-600/50 hover:border-emerald-400'
                         : 'bg-[#020704]/80 border-emerald-950 hover:border-emerald-800'
                     }`}
                   >
@@ -660,7 +668,7 @@ export default function ConvoyRoomPage() {
                         {member.avatar_url ? (
                           <img src={member.avatar_url} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <Bike className={`w-5 h-5 ${isMe ? 'text-emerald-400' : 'text-teal-400'}`} />
+                          <Bike className={`w-5 h-5 ${isFocused ? 'text-white' : isMe ? 'text-emerald-400' : 'text-teal-400'}`} />
                         )}
                       </div>
 
@@ -669,13 +677,19 @@ export default function ConvoyRoomPage() {
                           <h4 className="text-xs font-bold text-white truncate">
                             {member.name} {isMe && <span className="text-emerald-400">(Anda)</span>}
                           </h4>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold font-mono ${isMe ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-950 text-teal-300'}`}>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold font-mono ${isFocused ? 'bg-emerald-400 text-black font-bold' : isMe ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-950 text-teal-300'}`}>
                             {member.role}
                           </span>
                         </div>
-                        <p className="text-[11px] text-emerald-400/60 truncate mt-0.5">
-                          {member.motorcycle_model || 'Motor Rider'}
-                        </p>
+                        <div className="flex items-center gap-2 text-[11px] text-emerald-400/60 truncate mt-0.5">
+                          <span>{member.motorcycle_model || 'Motor Rider'}</span>
+                          {isFocused && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-emerald-300 font-bold font-mono">
+                              <Eye className="w-3 h-3 text-emerald-400" />
+                              <span>Melihat Jalur</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -695,7 +709,10 @@ export default function ConvoyRoomPage() {
                       {/* Tombol Keluarkan Rider (Khusus Road Captain) */}
                       {isCaptain && !isMe && (
                         <button
-                          onClick={() => setMemberToKick(member)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMemberToKick(member);
+                          }}
                           title={`Keluarkan ${member.name} dari konvoi`}
                           className="p-1.5 rounded-xl bg-red-950/40 hover:bg-red-900 border border-red-800/60 text-red-400 hover:text-white transition cursor-pointer"
                         >
@@ -716,6 +733,8 @@ export default function ConvoyRoomPage() {
             <MultiplayerConvoyMap
               members={group.members}
               currentMemberId={myMemberId}
+              focusedMemberId={focusedMemberId}
+              onSelectMember={setFocusedMemberId}
               checkpoint={group.checkpoint}
               vehicleMode={vehicleMode}
               onToggleVehicleMode={setVehicleMode}
