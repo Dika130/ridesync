@@ -131,11 +131,6 @@ npm start
    * Setiap rider yang membuka link akan langsung muncul di peta secara *live*.
    * Gunakan fitur **"Obrolan"** untuk berkoordinasi dan **"Pantau Rider"** untuk melihat posisi teman lainnya!
 
----
-
-## 📄 Lisensi
-
-Proyek ini dilisensikan di bawah lisensi [MIT License](LICENSE).
 
 ---
 
